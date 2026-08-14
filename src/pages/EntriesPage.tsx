@@ -2,8 +2,9 @@ import { useState, useRef, useEffect } from 'react'
 import { useYear } from '@/contexts/YearContext'
 import { useCategoriesByGroup } from '@/hooks/useCategories'
 import { useEntries, useUpsertEntry, buildEntryMap } from '@/hooks/useEntries'
+import { useInvestmentRecords } from '@/hooks/useInvestment'
 import { formatCurrency, formatPercent } from '@/lib/utils'
-import { CATEGORY_GROUP_LABELS } from '@/lib/constants'
+import { CATEGORY_GROUP_LABELS, PROVENTO_TYPES } from '@/lib/constants'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { LoadingPage } from '@/components/shared/LoadingSpinner'
 import { KPICard } from '@/components/shared/KPICard'
@@ -398,16 +399,18 @@ function SummaryCards({ groups, chartGroups, categories, entryMap, type }: {
 }
 
 // ─── Resumo Anual (visão consolidada) ────────────────────────────────────────
-function AnnualSummary({ categories, entryMap }: {
-  categories: Record<CategoryGroup, Category[]>; entryMap: MonthlyEntryMap
+function AnnualSummary({ categories, entryMap, year }: {
+  categories: Record<CategoryGroup, Category[]>; entryMap: MonthlyEntryMap; year: number
 }) {
-  const passiveGroup: CategoryGroup[] = ['RENDA_PASSIVA']
   const expenseGroups: CategoryGroup[] = ['DESPESAS_ESSENCIAIS', 'DESPESAS_DISCRICIONARIAS']
 
-  // ── Totais anuais ──
-  const totalPassiva = passiveGroup.flatMap(g => categories[g] ?? [])
-    .reduce((s, cat) => s + MONTHS.reduce((ms, m) => ms + (entryMap[cat.id]?.[m]?.realizado ?? 0), 0), 0)
+  // ── Renda Passiva Anual → espelha o total de "Proventos" da página Renda Investimentos ──
+  const { data: investmentRecords = [] } = useInvestmentRecords(year)
+  const proventoRecords = investmentRecords.filter(r => PROVENTO_TYPES.includes(r.record_type))
+  const totalPassiva = proventoRecords.reduce((s, r) => s + Number(r.amount), 0)
+  const mesesPassiva = new Set(proventoRecords.map(r => r.month)).size
 
+  // ── Totais anuais ──
   const totalDespesas = expenseGroups.flatMap(g => categories[g] ?? [])
     .reduce((s, cat) => s + MONTHS.reduce((ms, m) => ms + (entryMap[cat.id]?.[m]?.realizado ?? 0), 0), 0)
 
@@ -415,9 +418,6 @@ function AnnualSummary({ categories, entryMap }: {
   const pctGasta = totalPassiva !== 0 ? (totalDespesas / totalPassiva) * 100 : 0
 
   // Médias (só meses com lançamento)
-  const mesesPassiva = MONTHS.filter(m =>
-    passiveGroup.some(g => (categories[g] ?? []).some(cat => (entryMap[cat.id]?.[m]?.realizado ?? 0) !== 0))
-  ).length
   const mesesDesp = MONTHS.filter(m =>
     expenseGroups.some(g => (categories[g] ?? []).some(cat => (entryMap[cat.id]?.[m]?.realizado ?? 0) !== 0))
   ).length
@@ -427,8 +427,7 @@ function AnnualSummary({ categories, entryMap }: {
   // ── Dados mensais para o gráfico ──
   const chartData = MONTHS.map((_, i) => {
     const m = i + 1
-    const rp = passiveGroup.flatMap(g => categories[g] ?? [])
-      .reduce((s, cat) => s + (entryMap[cat.id]?.[m]?.realizado ?? 0), 0)
+    const rp = proventoRecords.filter(r => r.month === m).reduce((s, r) => s + Number(r.amount), 0)
     const dep = expenseGroups.flatMap(g => categories[g] ?? [])
       .reduce((s, cat) => s + (entryMap[cat.id]?.[m]?.realizado ?? 0), 0)
     const pct = rp !== 0 ? Math.round((dep / rp) * 100) : null
@@ -768,7 +767,7 @@ export function EntriesPage() {
         </TabsContent>
 
         <TabsContent value="resumo" className="mt-2">
-          <AnnualSummary categories={byGroup} entryMap={entryMap} />
+          <AnnualSummary categories={byGroup} entryMap={entryMap} year={year} />
         </TabsContent>
       </Tabs>
 

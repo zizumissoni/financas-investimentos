@@ -114,3 +114,4 @@ export interface DashboardSummary {
   saldo: number
   pct_gasta: number
 }
+
