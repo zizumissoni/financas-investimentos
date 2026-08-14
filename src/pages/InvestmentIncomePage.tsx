@@ -608,7 +608,7 @@ export function InvestmentIncomePage() {
         <KPICard title="Proventos" value={formatCurrency(totalProventos)} icon={<TrendingUp size={18} />} subtitle="Dividendos, juros, rendimentos" />
         <KPICard title="Vendas" value={formatCurrency(totalVendas)} subtitle={totalVendas >= 0 ? 'Lucro com vendas' : 'Perda com vendas'} />
         <KPICard title="Total Geral" value={formatCurrency(totalGeral)} subtitle={`${filteredRecords.length} lançamentos`} />
-        <KPICard title="Média Mensal" value={formatCurrency(mediaMonsal)} subtitle={`${monthsWithData} mês(es) com dados`} />
+        <KPICard title="Média Mensal (Considerando Vendas)" value={formatCurrency(mediaMonsal)} subtitle={`${monthsWithData} mês(es) com dados`} />
       </div>
 
       {/* ── Seletor Temporal ── */}
