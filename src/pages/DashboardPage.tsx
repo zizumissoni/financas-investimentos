@@ -8,6 +8,7 @@ import { usePatrimonyValues } from '@/hooks/usePatrimony'
 import { KPICard } from '@/components/shared/KPICard'
 import { LoadingPage } from '@/components/shared/LoadingSpinner'
 import { formatCurrency, formatPercent, formatMonth, derivebillStatus, daysUntilDue } from '@/lib/utils'
+import { PROVENTO_TYPES } from '@/lib/constants'
 import { Badge } from '@/components/ui/badge'
 import {
   TrendingUp, TrendingDown, Minus, DollarSign, PiggyBank,
@@ -17,13 +18,6 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
-import type { AssetClass, InvestmentRecordType } from '@/types/finance.types'
-
-// ─── Classes de ativos que compõem a Renda Passiva ───────────────────────────
-const PASSIVE_CLASSES = new Set<AssetClass>(['FII', 'EUA_RENDA', 'CRI_CRA_DEB', 'RFIXA_BR', 'ETF'])
-const isPassiveRecord = (cls: AssetClass, type: InvestmentRecordType) =>
-  PASSIVE_CLASSES.has(cls) ||
-  (cls === 'ACAO_BR' && (type === 'JCP' || type === 'DIVIDENDO'))
 
 // ─── Bill status badge ────────────────────────────────────────────────────────
 function BillStatusBadge({ dueDate, paidAt }: { dueDate: string; paidAt?: string | null }) {
@@ -106,11 +100,11 @@ export function DashboardPage() {
     }
   }, [categories, entries])
 
-  // ── KPI: Renda Passiva (investment_records direto) ───────────────────────────
+  // ── KPI: Renda Passiva → espelha o total de "Proventos" da página Renda Investimentos ──
   const rendaPassivaTotal = useMemo(
     () =>
       investRecords
-        .filter((r) => isPassiveRecord(r.asset_class, r.record_type))
+        .filter((r) => PROVENTO_TYPES.includes(r.record_type))
         .reduce((s, r) => s + Number(r.amount), 0),
     [investRecords]
   )
@@ -132,7 +126,7 @@ export function DashboardPage() {
   const investByMonth = useMemo(() => {
     const map: Record<number, number> = {}
     investRecords
-      .filter((r) => isPassiveRecord(r.asset_class, r.record_type))
+      .filter((r) => PROVENTO_TYPES.includes(r.record_type))
       .forEach((r) => { map[r.month] = (map[r.month] ?? 0) + Number(r.amount) })
     return map
   }, [investRecords])
