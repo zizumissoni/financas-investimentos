@@ -701,6 +701,12 @@ const GIOVANI_ENTRY_CATEGORIES = new Set([
   'Rendimentos de FIIs',
 ])
 
+// Categorias de Receitas que compõem a "Renda Tributável Anual"
+const TAXABLE_ENTRY_CATEGORIES = new Set([
+  'JCP', 'Dividendos-Ações BR', 'Exterior-Dividendos', 'ETFs-Renda Fixa',
+  'Honorários (PF)', 'Pró Labore', 'Venda Ações BR-Trib', 'Venda de FIIs',
+])
+
 export function PatrimonyPage() {
   const { user } = useAuth()
   const currentYear = getCurrentYear()
@@ -764,6 +770,24 @@ export function PatrimonyPage() {
     // Part 2: investment_records where class ∈ CRI_CRA_DEB | RFIXA_BR AND account = Adriele
     const investSum = investments
       .filter((r) => (r.asset_class === 'CRI_CRA_DEB' || r.asset_class === 'RFIXA_BR') && r.bank_account === 'Adriele')
+      .reduce((s, r) => s + Number(r.amount), 0)
+
+    return entriesSum + investSum
+  }, [categories, entries, investments])
+
+  // ── Renda Tributável Anual ───────────────────────────────────────────────────
+  // Receitas & Despesas → Receitas: 8 categorias específicas (total anual)
+  // + Renda Investimentos: lançamentos classe "R.Fixa BR", conta "Giovani", Tributável
+  const rendaTributavelAnual = useMemo(() => {
+    const taxableCatIds = new Set(
+      categories.filter((c) => TAXABLE_ENTRY_CATEGORIES.has(c.name)).map((c) => c.id)
+    )
+    const entriesSum = entries
+      .filter((e) => taxableCatIds.has(e.category_id))
+      .reduce((s, e) => s + Number(e.realizado), 0)
+
+    const investSum = investments
+      .filter((r) => r.asset_class === 'RFIXA_BR' && r.bank_account === 'Giovani' && r.is_taxable)
       .reduce((s, r) => s + Number(r.amount), 0)
 
     return entriesSum + investSum
@@ -845,6 +869,17 @@ export function PatrimonyPage() {
             </SelectContent>
           </Select>
         </div>
+      </div>
+
+      {/* Renda Tributável Anual */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <KPICard
+          title={`Renda Tributável Anual ${currYear}`}
+          value={formatCurrency(rendaTributavelAnual)}
+          icon={<TrendingUp size={18} />}
+          trend="up"
+          subtitle="Receitas (8 categorias) + R.Fixa BR tributável — Giovani"
+        />
       </div>
 
       {/* Tabs */}
