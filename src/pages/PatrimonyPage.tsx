@@ -776,7 +776,7 @@ export function PatrimonyPage() {
   }, [categories, entries, investments])
 
   // ── Renda Tributável Anual ───────────────────────────────────────────────────
-  // Receitas & Despesas → Receitas: 8 categorias específicas (total anual)
+  // Finanças Pessoais → Receitas: 8 categorias específicas (total anual)
   // + Renda Investimentos: lançamentos classe "R.Fixa BR", conta "Giovani", Tributável
   const rendaTributavelAnual = useMemo(() => {
     const taxableCatIds = new Set(

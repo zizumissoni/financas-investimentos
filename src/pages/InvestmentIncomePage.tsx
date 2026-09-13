@@ -602,7 +602,7 @@ export function InvestmentIncomePage() {
               }
             }}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors"
-            title="Sincronizar lançamentos existentes com Receitas e Despesas"
+            title="Sincronizar lançamentos existentes com Finanças Pessoais"
           >
             <CheckCircle size={13} /> Sincronizar → Receitas
           </button>

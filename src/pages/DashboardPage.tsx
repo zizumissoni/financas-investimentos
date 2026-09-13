@@ -198,10 +198,10 @@ export function DashboardPage() {
         <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full font-medium">{year}</span>
       </div>
 
-      {/* ── Bloco 1: Receitas & Despesas ── */}
+      {/* ── Bloco 1: Finanças Pessoais ── */}
       <div>
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 pl-1">
-          Receitas &amp; Despesas
+          Finanças Pessoais
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4">
           <KPICard

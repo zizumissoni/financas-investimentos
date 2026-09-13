@@ -714,7 +714,7 @@ export function EntriesPage() {
     <div className="space-y-5">
       {/* Cabeçalho */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-bold text-gray-900">Receitas & Despesas</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Finanças Pessoais</h1>
         <div className="flex items-center gap-2">
           {/* Botões de importação (só nas abas receitas/despesas) */}
           {activeTab !== 'resumo' && (

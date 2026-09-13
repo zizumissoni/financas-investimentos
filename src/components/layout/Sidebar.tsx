@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase'
 
 const navItems = [
   { to: '/dashboard',   icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/entries',     icon: Receipt,         label: 'Receitas & Despesas' },
+  { to: '/entries',     icon: Receipt,         label: 'Finanças Pessoais' },
   { to: '/investments', icon: BarChart3,        label: 'Renda Investimentos' },
   { to: '/patrimony',   icon: Wallet,           label: 'Patrimônio' },
   { to: '/bills',       icon: CreditCard,       label: 'Contas a Pagar' },
