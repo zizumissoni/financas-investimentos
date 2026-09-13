@@ -11,7 +11,7 @@ import {
 import { bulkCreateInvestmentRecords } from '@/services/investment.service'
 import { useSyncInvestmentToEntries } from '@/hooks/useSyncInvestmentToEntries'
 import { useAuth } from '@/hooks/useAuth'
-import { formatCurrency, formatMonth } from '@/lib/utils'
+import { formatCurrency, formatMonth, getCurrentYear, getCurrentMonth } from '@/lib/utils'
 import {
   ASSET_CLASS_LABELS,
   CHART_COLORS,
@@ -379,6 +379,13 @@ export function InvestmentIncomePage() {
   const monthsWithData = new Set(filteredRecords.map(r => r.month)).size
   const mediaMonsal    = monthsWithData > 0 ? totalGeral / monthsWithData : 0
 
+  // Média mensal de Proventos considerando apenas meses fechados (já encerrados) do ano
+  const lastClosedMonth = year < getCurrentYear() ? 12 : year === getCurrentYear() ? getCurrentMonth() - 1 : 0
+  const proventoRecordsClosed = filteredRecords.filter(r => PROVENTO_TYPES.includes(r.record_type) && r.month <= lastClosedMonth)
+  const totalProventosClosed  = proventoRecordsClosed.reduce((s, r) => s + Number(r.amount), 0)
+  const closedMonthsWithData  = new Set(proventoRecordsClosed.map(r => r.month)).size
+  const mediaProventosMensal  = closedMonthsWithData > 0 ? totalProventosClosed / closedMonthsWithData : 0
+
   // ── Dados dos gráficos ────────────────────────────────────────────────────
   const activeClasses = useMemo(() => [...new Set(filteredRecords.map(r => r.asset_class))] as AssetClass[], [filteredRecords])
 
@@ -605,7 +612,12 @@ export function InvestmentIncomePage() {
 
       {/* ── KPI Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard title="Proventos" value={formatCurrency(totalProventos)} icon={<TrendingUp size={18} />} subtitle="Dividendos, juros, rendimentos" />
+        <KPICard
+          title="Proventos"
+          value={formatCurrency(totalProventos)}
+          icon={<TrendingUp size={18} />}
+          subtitle={`Dividendos, juros, rendimentos · Média mensal (meses fechados): ${formatCurrency(mediaProventosMensal)}`}
+        />
         <KPICard title="Vendas" value={formatCurrency(totalVendas)} subtitle={totalVendas >= 0 ? 'Lucro com vendas' : 'Perda com vendas'} />
         <KPICard title="Total Geral" value={formatCurrency(totalGeral)} subtitle={`${filteredRecords.length} lançamentos`} />
         <KPICard title="Média Mensal (Considerando Vendas)" value={formatCurrency(mediaMonsal)} subtitle={`${monthsWithData} mês(es) com dados`} />
