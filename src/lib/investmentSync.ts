@@ -7,6 +7,7 @@
  *
  * Rules (category name → filter on investment_records):
  *  - Rendimentos de FIIs    ← class = FII  AND type = RENDIMENTO (exclui vendas)
+ *  - Venda de FIIs         ← class = FII  AND type = VENDA
  *  - JCP                   ← class = ACAO_BR  AND type = JCP
  *  - Dividendos-Ações BR   ← class = ACAO_BR  AND type = DIVIDENDO
  *  - Exterior-Dividendos   ← class = EUA_RENDA  (any type)
@@ -28,6 +29,10 @@ export const INVESTMENT_SYNC_MAPPINGS: Mapping[] = [
   {
     categoryName: 'Rendimentos de FIIs',
     filter: (r) => r.asset_class === 'FII' && r.record_type === 'RENDIMENTO',
+  },
+  {
+    categoryName: 'Venda de FIIs',
+    filter: (r) => r.asset_class === 'FII' && r.record_type === 'VENDA',
   },
   {
     categoryName: 'JCP',
