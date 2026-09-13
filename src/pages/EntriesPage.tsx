@@ -416,6 +416,7 @@ function AnnualSummary({ categories, entryMap, year }: {
 
   const saldo = totalPassiva - totalDespesas
   const pctGasta = totalPassiva !== 0 ? (totalDespesas / totalPassiva) * 100 : 0
+  const pctEconomia = totalPassiva !== 0 ? (saldo / totalPassiva) * 100 : 0
 
   // Médias (só meses com lançamento)
   const mesesDesp = MONTHS.filter(m =>
@@ -497,7 +498,7 @@ function AnnualSummary({ categories, entryMap, year }: {
           title="% Gasta"
           value={formatPercent(pctGasta)}
           icon={<Target size={18} />}
-          subtitle="Despesas / Receitas"
+          subtitle={`Despesas / Receitas · Economia: ${formatPercent(pctEconomia)}`}
           valueClassName={pctGasta <= 100 ? 'text-green-600' : 'text-red-600'}
         />
       </div>
