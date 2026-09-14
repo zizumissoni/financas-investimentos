@@ -13,6 +13,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { TransactionDialog } from '@/components/entries/TransactionDialog'
 import { TransferDialog } from '@/components/entries/TransferDialog'
 import { AccountsTab } from '@/components/entries/AccountsTab'
+import { TransactionsTab } from '@/components/entries/TransactionsTab'
 import type { Category, CategoryGroup, MonthlyEntryMap } from '@/types/finance.types'
 import { cn } from '@/lib/utils'
 import {
@@ -682,7 +683,7 @@ export function EntriesPage() {
   const { data: entries = [], isLoading: loadingEntries } = useEntries(year)
   const upsert = useUpsertEntry()
 
-  const [activeTab, setActiveTab] = useState<'receitas' | 'despesas' | 'resumo' | 'contas'>('resumo')
+  const [activeTab, setActiveTab] = useState<'receitas' | 'despesas' | 'resumo' | 'contas' | 'transacoes'>('resumo')
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<{ success: number; errors: string[] } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -805,7 +806,7 @@ export function EntriesPage() {
             <ArrowLeftRight size={13} /> Transferência
           </button>
           {/* Botões de importação (só nas abas receitas/despesas) */}
-          {activeTab !== 'resumo' && activeTab !== 'contas' && (
+          {(activeTab === 'receitas' || activeTab === 'despesas') && (
             <>
               <button
                 onClick={downloadTemplate}
@@ -843,6 +844,7 @@ export function EntriesPage() {
           <TabsTrigger value="receitas">📈 Receitas</TabsTrigger>
           <TabsTrigger value="despesas">📉 Despesas</TabsTrigger>
           <TabsTrigger value="resumo">📊 Resumo Anual</TabsTrigger>
+          <TabsTrigger value="transacoes">🧾 Transações</TabsTrigger>
           <TabsTrigger value="contas">🏦 Contas</TabsTrigger>
         </TabsList>
 
@@ -858,6 +860,10 @@ export function EntriesPage() {
 
         <TabsContent value="resumo" className="mt-2">
           <AnnualSummary categories={byGroup} entryMap={entryMap} year={year} />
+        </TabsContent>
+
+        <TabsContent value="transacoes" className="mt-2">
+          <TransactionsTab />
         </TabsContent>
 
         <TabsContent value="contas" className="mt-2">

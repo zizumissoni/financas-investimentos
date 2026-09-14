@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useCategoriesByGroup } from '@/hooks/useCategories'
 import { useBankAccounts } from '@/hooks/useBankAccounts'
-import { useCreateTransaction, useCreateTransactions } from '@/hooks/useTransactions'
+import { useCreateTransaction, useCreateTransactions, useUpdateTransaction } from '@/hooks/useTransactions'
 import { CATEGORY_GROUP_LABELS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { toast } from '@/hooks/useToast'
@@ -14,7 +14,7 @@ import { Switch } from '@/components/ui/switch'
 import {
   Select, SelectGroup, SelectLabel, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import type { CategoryGroup, EntryType } from '@/types/finance.types'
+import type { CategoryGroup, EntryType, Transaction } from '@/types/finance.types'
 
 const INCOME_GROUPS: CategoryGroup[] = ['RENDA_PASSIVA', 'RENDA_ATIVA_PJ', 'RENDA_ATIVA_INV']
 const EXPENSE_GROUPS: CategoryGroup[] = ['DESPESAS_ESSENCIAIS', 'DESPESAS_DISCRICIONARIAS']
@@ -33,22 +33,40 @@ const BLANK_FORM = () => ({
   installments: 1,
 })
 
-export function TransactionDialog({ type, open, onOpenChange }: {
+function formFromTransaction(t: Transaction): ReturnType<typeof BLANK_FORM> {
+  return {
+    amount: String(t.amount),
+    is_settled: t.is_settled,
+    date: t.date,
+    description: t.description ?? '',
+    category_id: t.category_id,
+    bank_account_id: t.bank_account_id,
+    is_ignored: t.is_ignored,
+    installments: 1,
+  }
+}
+
+export function TransactionDialog({ type, open, onOpenChange, editing }: {
   type: EntryType
   open: boolean
   onOpenChange: (open: boolean) => void
+  editing?: Transaction | null
 }) {
   const { user } = useAuth()
   const { byGroup } = useCategoriesByGroup()
   const { data: bankAccounts = [] } = useBankAccounts()
   const createOne = useCreateTransaction()
   const createMany = useCreateTransactions()
+  const updateOne = useUpdateTransaction()
 
-  const [form, setForm] = useState(BLANK_FORM())
-  const [dateMode, setDateMode] = useState<'hoje' | 'ontem' | 'outros'>('hoje')
+  // `editing` dialogs are mounted fresh per edit (parent conditionally renders
+  // them), so a lazy initializer is enough to prefill the form — no effect needed.
+  const [form, setForm] = useState(() => (editing ? formFromTransaction(editing) : BLANK_FORM()))
+  const [dateMode, setDateMode] = useState<'hoje' | 'ontem' | 'outros'>(() => (editing ? 'outros' : 'hoje'))
 
   const groups = type === 'RECEITA' ? INCOME_GROUPS : EXPENSE_GROUPS
   const isDespesa = type === 'DESPESA'
+  const isEditing = !!editing
   const accent = type === 'RECEITA' ? 'text-green-600' : 'text-red-600'
 
   function reset() {
@@ -78,7 +96,12 @@ export function TransactionDialog({ type, open, onOpenChange }: {
         is_ignored: form.is_ignored,
       }
 
-      if (isDespesa && form.installments > 1) {
+      if (isEditing) {
+        await updateOne.mutateAsync({
+          id: editing.id,
+          updates: { ...base, amount, date: form.date, is_settled: form.is_settled },
+        })
+      } else if (isDespesa && form.installments > 1) {
         const n = form.installments
         const share = Math.round((amount / n) * 100) / 100
         const lastShare = Math.round((amount - share * (n - 1)) * 100) / 100
@@ -101,7 +124,7 @@ export function TransactionDialog({ type, open, onOpenChange }: {
         await createOne.mutateAsync({ ...base, amount, date: form.date, is_settled: form.is_settled })
       }
 
-      toast({ title: type === 'RECEITA' ? 'Receita salva!' : 'Despesa salva!', variant: 'success' })
+      toast({ title: isEditing ? 'Lançamento atualizado!' : type === 'RECEITA' ? 'Receita salva!' : 'Despesa salva!', variant: 'success' })
       if (createNew) reset()
       else onOpenChange(false)
     } catch (e: unknown) {
@@ -109,13 +132,15 @@ export function TransactionDialog({ type, open, onOpenChange }: {
     }
   }
 
-  const isPending = createOne.isPending || createMany.isPending
+  const isPending = createOne.isPending || createMany.isPending || updateOne.isPending
 
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) reset() }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{type === 'RECEITA' ? 'Nova Receita' : 'Nova Despesa'}</DialogTitle>
+          <DialogTitle>
+            {isEditing ? 'Editar Lançamento' : type === 'RECEITA' ? 'Nova Receita' : 'Nova Despesa'}
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
@@ -192,7 +217,7 @@ export function TransactionDialog({ type, open, onOpenChange }: {
             <Switch checked={form.is_ignored} onCheckedChange={(v) => setForm((p) => ({ ...p, is_ignored: v }))} />
           </div>
 
-          {isDespesa && (
+          {isDespesa && !isEditing && (
             <div className="space-y-1.5">
               <Label>Parcelar em até 12x</Label>
               <Select value={String(form.installments)} onValueChange={(v) => setForm((p) => ({ ...p, installments: Number(v) }))}>
@@ -210,10 +235,20 @@ export function TransactionDialog({ type, open, onOpenChange }: {
               )}
             </div>
           )}
+
+          {isEditing && editing?.installment_total && editing.installment_total > 1 && (
+            <p className="text-xs text-gray-400">
+              Parcela {editing.installment_number}/{editing.installment_total} — editar aqui altera só esta parcela.
+            </p>
+          )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => handleSave(true)} disabled={isPending}>Salvar e criar nova</Button>
-          <Button variant={type === 'RECEITA' ? 'success' : 'destructive'} onClick={() => handleSave(false)} disabled={isPending}>Salvar</Button>
+          {!isEditing && (
+            <Button variant="outline" onClick={() => handleSave(true)} disabled={isPending}>Salvar e criar nova</Button>
+          )}
+          <Button variant={type === 'RECEITA' ? 'success' : 'destructive'} onClick={() => handleSave(false)} disabled={isPending}>
+            Salvar
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
