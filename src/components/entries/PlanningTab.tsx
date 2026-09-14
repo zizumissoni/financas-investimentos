@@ -3,6 +3,7 @@ import { useYear } from '@/contexts/YearContext'
 import { useCategoriesByGroup } from '@/hooks/useCategories'
 import { useEntries, useUpsertEntry, buildEntryMap } from '@/hooks/useEntries'
 import { useTransactions } from '@/hooks/useTransactions'
+import { useAnnualBudgets, useUpsertAnnualBudget, useDeleteAnnualBudget } from '@/hooks/useAnnualBudgets'
 import { useAuth } from '@/hooks/useAuth'
 import { formatCurrency, formatPercent, formatMonthFull, getCurrentMonth, cn, MONTHS } from '@/lib/utils'
 import { CATEGORY_GROUP_LABELS } from '@/lib/constants'
@@ -32,7 +33,7 @@ function barColor(pct: number) {
   return pct > 100 ? 'bg-red-500' : pct > 80 ? 'bg-amber-500' : 'bg-green-500'
 }
 
-// ─── Dialog de edição da meta planejada (orçado) ──────────────────────────────
+// ─── Dialog de edição da meta planejada ────────────────────────────────────────
 function EditMetaDialog({ category, currentValue, onOpenChange, onSave }: {
   category: Category | null
   currentValue: number
@@ -78,7 +79,10 @@ export function PlanningTab() {
   const { byGroup, categories, isLoading: loadingCats } = useCategoriesByGroup()
   const { data: entries = [], isLoading: loadingEntries } = useEntries(year)
   const { data: transactions = [], isLoading: loadingTx } = useTransactions(year)
+  const { data: annualBudgets = [], isLoading: loadingAnnual } = useAnnualBudgets(year)
   const upsert = useUpsertEntry()
+  const upsertAnnual = useUpsertAnnualBudget()
+  const deleteAnnual = useDeleteAnnualBudget()
 
   const [mode, setMode] = useState<'mensal' | 'anual'>('mensal')
   const [month, setMonth] = useState(getCurrentMonth())
@@ -86,11 +90,15 @@ export function PlanningTab() {
   const [resetCat, setResetCat] = useState<Category | null>(null)
 
   const entryMap = buildEntryMap(categories, entries)
+  const annualBudgetMap = useMemo(() => new Map(annualBudgets.map((b) => [b.category_id, Number(b.amount)])), [annualBudgets])
   const monthsInScope = mode === 'mensal' ? [month] : MONTHS
 
+  // Meta: no mensal vem do orçado do mês; no anual é um valor independente (annual_budgets)
   function metaFor(catId: string) {
-    return monthsInScope.reduce((s, m) => s + (entryMap[catId]?.[m]?.orcado ?? 0), 0)
+    if (mode === 'anual') return annualBudgetMap.get(catId) ?? 0
+    return entryMap[catId]?.[month]?.orcado ?? 0
   }
+  // Despesas pagas: sempre o realizado de verdade (soma do mês ou dos 12 meses do ano)
   function pagasFor(catId: string) {
     return monthsInScope.reduce((s, m) => s + (entryMap[catId]?.[m]?.realizado ?? 0), 0)
   }
@@ -121,26 +129,33 @@ export function PlanningTab() {
     const economiaPlanejada = receitas > 0 ? (balancoPlanejado / receitas) * 100 : 0
     return { meta, pagas, previstas, totalGasto, receitas, gastosPlanejados, balancoPlanejado, economiaPlanejada }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [despesaCategories, entryMap, transactions, monthsInScope.join(','), byGroup])
+  }, [despesaCategories, entryMap, transactions, annualBudgetMap, mode, monthsInScope.join(','), byGroup])
 
   async function handleSaveMeta(cat: Category, value: number) {
-    if (mode !== 'mensal') return
-    const curr = entryMap[cat.id]?.[month]
-    await upsert.mutateAsync({
-      user_id: user!.id, category_id: cat.id, year, month,
-      realizado: curr?.realizado ?? 0, orcado: value,
-    })
+    if (mode === 'anual') {
+      await upsertAnnual.mutateAsync({ user_id: user!.id, category_id: cat.id, year, amount: value })
+    } else {
+      const curr = entryMap[cat.id]?.[month]
+      await upsert.mutateAsync({
+        user_id: user!.id, category_id: cat.id, year, month,
+        realizado: curr?.realizado ?? 0, orcado: value,
+      })
+    }
     toast({ title: 'Meta atualizada!', variant: 'success' })
   }
 
   async function handleReset() {
     if (!resetCat) return
     try {
-      const curr = entryMap[resetCat.id]?.[month]
-      await upsert.mutateAsync({
-        user_id: user!.id, category_id: resetCat.id, year, month,
-        realizado: curr?.realizado ?? 0, orcado: 0,
-      })
+      if (mode === 'anual') {
+        await deleteAnnual.mutateAsync({ categoryId: resetCat.id, year })
+      } else {
+        const curr = entryMap[resetCat.id]?.[month]
+        await upsert.mutateAsync({
+          user_id: user!.id, category_id: resetCat.id, year, month,
+          realizado: curr?.realizado ?? 0, orcado: 0,
+        })
+      }
       toast({ title: 'Meta removida', variant: 'success' })
     } catch (e: unknown) {
       toast({ title: 'Erro ao remover meta', description: (e as Error).message, variant: 'destructive' })
@@ -149,7 +164,7 @@ export function PlanningTab() {
     }
   }
 
-  if (loadingCats || loadingEntries || loadingTx) return <LoadingPage />
+  if (loadingCats || loadingEntries || loadingTx || loadingAnnual) return <LoadingPage />
 
   const pagasPct = totals.meta > 0 ? (totals.pagas / totals.meta) * 100 : 0
   const previstasPct = totals.meta > 0 ? (totals.previstas / totals.meta) * 100 : 0
@@ -168,7 +183,7 @@ export function PlanningTab() {
               </button>
             ))}
           </div>
-          {mode === 'mensal' && (
+          {mode === 'mensal' ? (
             <div className="flex items-center gap-2">
               <button onClick={() => setMonth((m) => m === 1 ? 12 : m - 1)} className="p-1 rounded-full hover:bg-gray-100 text-gray-400">
                 <ChevronLeft size={18} />
@@ -180,6 +195,10 @@ export function PlanningTab() {
                 <ChevronRight size={18} />
               </button>
             </div>
+          ) : (
+            <span className="text-sm font-bold text-violet-700 bg-violet-50 border border-violet-200 rounded-full px-4 py-1">
+              Ano {year}
+            </span>
           )}
         </div>
 
@@ -251,15 +270,14 @@ export function PlanningTab() {
                               <div className="flex items-center justify-center gap-1">
                                 <button
                                   onClick={() => setEditCat(cat)}
-                                  disabled={mode !== 'mensal'}
-                                  className="p-1.5 rounded text-blue-400 hover:bg-blue-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                  title={mode === 'mensal' ? 'Editar meta' : 'Edite pelo modo mensal'}
+                                  className="p-1.5 rounded text-blue-400 hover:bg-blue-50 transition-colors"
+                                  title="Editar meta"
                                 >
                                   <Pencil size={14} />
                                 </button>
                                 <button
                                   onClick={() => setResetCat(cat)}
-                                  disabled={mode !== 'mensal' || meta === 0}
+                                  disabled={meta === 0}
                                   className="p-1.5 rounded text-red-400 hover:bg-red-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                                   title="Remover meta"
                                 >
@@ -277,11 +295,11 @@ export function PlanningTab() {
             </table>
           </div>
         </div>
-        {mode === 'anual' && (
-          <p className="text-xs text-gray-400">
-            No modo anual os valores somam os 12 meses de {year}. Para editar metas, use o Planejamento Mensal.
-          </p>
-        )}
+        <p className="text-xs text-gray-400">
+          {mode === 'anual'
+            ? 'O Planejamento Anual é independente do mensal — cada categoria tem uma meta única para o ano inteiro. As despesas pagas continuam refletindo os valores reais gastos nos 12 meses.'
+            : 'Meta de cada categoria para o mês selecionado, sem relação com o Planejamento Anual.'}
+        </p>
       </div>
 
       {/* ── KPIs laterais ── */}
@@ -297,7 +315,7 @@ export function PlanningTab() {
 
       <EditMetaDialog
         category={editCat}
-        currentValue={editCat ? (entryMap[editCat.id]?.[month]?.orcado ?? 0) : 0}
+        currentValue={editCat ? metaFor(editCat.id) : 0}
         onOpenChange={(v) => { if (!v) setEditCat(null) }}
         onSave={(value) => handleSaveMeta(editCat!, value)}
       />
@@ -306,11 +324,13 @@ export function PlanningTab() {
         open={!!resetCat}
         onOpenChange={(v) => { if (!v) setResetCat(null) }}
         title="Remover meta planejada?"
-        description={`A meta de "${resetCat?.name}" para ${formatMonthFull(month)}/${year} será zerada.`}
+        description={mode === 'anual'
+          ? `A meta anual de "${resetCat?.name}" para ${year} será removida.`
+          : `A meta de "${resetCat?.name}" para ${formatMonthFull(month)}/${year} será zerada.`}
         confirmLabel="Remover"
         variant="destructive"
         onConfirm={handleReset}
-        loading={upsert.isPending}
+        loading={upsert.isPending || upsertAnnual.isPending || deleteAnnual.isPending}
       />
     </div>
   )

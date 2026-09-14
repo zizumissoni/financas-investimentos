@@ -83,7 +83,8 @@ function EntryCell({
     } catch { toast({ title: 'Erro ao salvar', variant: 'destructive' }) }
   }
 
-  const hasData = realizado !== 0 || orcado !== 0
+  const showOrcado = type === 'receitas'
+  const hasData = showOrcado ? (realizado !== 0 || orcado !== 0) : realizado !== 0
 
   return (
     <div ref={ref} className="relative">
@@ -97,7 +98,7 @@ function EntryCell({
         <div className={cn('text-xs font-medium leading-tight', getCellColor(realizado, orcado, hasData, type))}>
           {hasData ? formatCurrency(realizado) : '—'}
         </div>
-        {orcado !== 0 && (
+        {showOrcado && orcado !== 0 && (
           <div className="text-[10px] text-blue-400 leading-tight font-medium">
             orç: {formatCurrency(orcado)}
           </div>
@@ -108,21 +109,28 @@ function EntryCell({
         <div className="absolute z-30 bg-white border border-gray-200 rounded-xl shadow-2xl p-4 w-56 top-full left-1/2 -translate-x-1/2 mt-1 space-y-3">
           <p className="text-xs font-bold text-gray-700">{MESES_COMPLETOS[month - 1]}</p>
           <div>
-            <label className="text-xs text-gray-500 font-medium">Realizado (R$)</label>
+            <label className="text-xs text-gray-500 font-medium">
+              {type === 'despesas' ? 'Valor Gasto (R$)' : 'Realizado (R$)'}
+            </label>
             <input autoFocus type="number" step="0.01"
               className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={localReal} onChange={(e) => setLocalReal(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') { handleSave(); setOpen(false) } if (e.key === 'Escape') setOpen(false) }}
             />
           </div>
-          <div>
-            <label className="text-xs text-gray-500 font-medium">Orçado (R$)</label>
-            <input type="number" step="0.01"
-              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={localOrc} onChange={(e) => setLocalOrc(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') { handleSave(); setOpen(false) } if (e.key === 'Escape') setOpen(false) }}
-            />
-          </div>
+          {showOrcado && (
+            <div>
+              <label className="text-xs text-gray-500 font-medium">Orçado (R$)</label>
+              <input type="number" step="0.01"
+                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={localOrc} onChange={(e) => setLocalOrc(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { handleSave(); setOpen(false) } if (e.key === 'Escape') setOpen(false) }}
+              />
+            </div>
+          )}
+          {type === 'despesas' && (
+            <p className="text-[11px] text-gray-400">Meta orçada agora é definida na aba Planejamento.</p>
+          )}
           <button onClick={() => { handleSave(); setOpen(false) }}
             className="w-full bg-blue-600 text-white text-xs py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold">
             Salvar
@@ -176,19 +184,23 @@ function CategoryGroupSection({
         <td className="px-2 py-2.5 text-center text-xs font-bold text-blue-900 bg-blue-100 min-w-[100px]">
           {formatCurrency(grandTotalReal)}
         </td>
-        <td className="px-2 py-2.5 text-center text-xs font-semibold text-blue-600 min-w-[100px]">
-          {grandTotalOrc !== 0 ? formatCurrency(grandTotalOrc) : '—'}
-        </td>
+        {type === 'receitas' && (
+          <td className="px-2 py-2.5 text-center text-xs font-semibold text-blue-600 min-w-[100px]">
+            {grandTotalOrc !== 0 ? formatCurrency(grandTotalOrc) : '—'}
+          </td>
+        )}
         <td className="px-2 py-2.5 text-center text-xs font-semibold text-blue-600 min-w-[90px]">
           {formatCurrency(grandAvg)}
         </td>
-        <td className="px-2 py-2.5 text-center text-xs min-w-[70px]">
-          {grandTotalOrc !== 0 ? (
-            <span className={cn('font-bold px-1.5 py-0.5 rounded-full text-[10px]', grandPctColor)}>
-              {formatPercent((grandTotalReal / grandTotalOrc) * 100)}
-            </span>
-          ) : '—'}
-        </td>
+        {type === 'receitas' && (
+          <td className="px-2 py-2.5 text-center text-xs min-w-[70px]">
+            {grandTotalOrc !== 0 ? (
+              <span className={cn('font-bold px-1.5 py-0.5 rounded-full text-[10px]', grandPctColor)}>
+                {formatPercent((grandTotalReal / grandTotalOrc) * 100)}
+              </span>
+            ) : '—'}
+          </td>
+        )}
       </tr>
 
       {expanded && categories.map(cat => {
@@ -219,19 +231,23 @@ function CategoryGroupSection({
             <td className="px-2 py-2 text-center text-xs font-bold text-gray-800 bg-gray-50">
               {totalReal !== 0 ? formatCurrency(totalReal) : '—'}
             </td>
-            <td className="px-2 py-2 text-center text-xs text-blue-600 font-medium">
-              {totalOrc !== 0 ? formatCurrency(totalOrc) : '—'}
-            </td>
+            {type === 'receitas' && (
+              <td className="px-2 py-2 text-center text-xs text-blue-600 font-medium">
+                {totalOrc !== 0 ? formatCurrency(totalOrc) : '—'}
+              </td>
+            )}
             <td className="px-2 py-2 text-center text-xs text-gray-500">
               {avg !== 0 ? formatCurrency(avg) : '—'}
             </td>
-            <td className="px-2 py-2 text-center text-xs">
-              {pct !== null ? (
-                <span className={cn('font-semibold px-1.5 py-0.5 rounded-full text-[10px]', pctColor)}>
-                  {formatPercent(pct)}
-                </span>
-              ) : '—'}
-            </td>
+            {type === 'receitas' && (
+              <td className="px-2 py-2 text-center text-xs">
+                {pct !== null ? (
+                  <span className={cn('font-semibold px-1.5 py-0.5 rounded-full text-[10px]', pctColor)}>
+                    {formatPercent(pct)}
+                  </span>
+                ) : '—'}
+              </td>
+            )}
           </tr>
         )
       })}
@@ -260,15 +276,19 @@ function EntriesTable({ groups, categories, entryMap, year, type }: {
             <th className="px-2 py-3 text-center text-xs font-bold text-gray-700 uppercase tracking-wide bg-gray-100 min-w-[100px]">
               Total Real.
             </th>
-            <th className="px-2 py-3 text-center text-xs font-bold text-blue-600 uppercase tracking-wide min-w-[100px]">
-              Total Orç.
-            </th>
+            {type === 'receitas' && (
+              <th className="px-2 py-3 text-center text-xs font-bold text-blue-600 uppercase tracking-wide min-w-[100px]">
+                Total Orç.
+              </th>
+            )}
             <th className="px-2 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wide min-w-[90px]">
               Média
             </th>
-            <th className="px-2 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wide min-w-[70px]">
-              % Real/Orç
-            </th>
+            {type === 'receitas' && (
+              <th className="px-2 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wide min-w-[70px]">
+                % Real/Orç
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>

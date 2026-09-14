@@ -156,3 +156,14 @@ export interface AccountTransfer {
   created_at: string
 }
 
+// Meta de Planejamento Anual — independente do orçado mensal
+export interface AnnualBudget {
+  id: string
+  user_id: string
+  category_id: string
+  year: number
+  amount: number
+  created_at: string
+  updated_at: string
+}
+
