@@ -8,7 +8,6 @@ import { useAuth } from '@/hooks/useAuth'
 import { formatCurrency, formatPercent, formatMonthFull, getCurrentMonth, cn, MONTHS } from '@/lib/utils'
 import { CATEGORY_GROUP_LABELS } from '@/lib/constants'
 import { toast } from '@/hooks/useToast'
-import { KPICard } from '@/components/shared/KPICard'
 import { LoadingPage } from '@/components/shared/LoadingSpinner'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { Button } from '@/components/ui/button'
@@ -302,15 +301,40 @@ export function PlanningTab() {
         </p>
       </div>
 
-      {/* ── KPIs laterais ── */}
-      <div className="grid grid-cols-2 xl:grid-cols-1 gap-4">
-        <KPICard title={mode === 'mensal' ? 'Receitas do Mês' : 'Receitas do Ano'} value={formatCurrency(totals.receitas)} icon={<TrendingUp size={18} />} trend="up" />
-        <KPICard title="Gastos Planejados" value={formatCurrency(totals.gastosPlanejados)} icon={<TrendingDown size={18} />} trend="down" />
-        <KPICard
-          title="Balanço Planejado" value={formatCurrency(totals.balancoPlanejado)} icon={<Scale size={18} />}
-          trend={totals.balancoPlanejado >= 0 ? 'up' : 'down'} valueClassName={totals.balancoPlanejado >= 0 ? 'text-green-600' : 'text-red-600'}
-        />
-        <KPICard title="Economia Planejada" value={formatPercent(totals.economiaPlanejada)} icon={<PiggyBank size={18} />} trend={totals.economiaPlanejada >= 0 ? 'up' : 'down'} />
+      {/* ── Resumo lateral (card único) ── */}
+      <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100 h-fit">
+        {[
+          {
+            label: mode === 'mensal' ? 'Receitas do Mês' : 'Receitas do Ano',
+            value: formatCurrency(totals.receitas), icon: TrendingUp, tone: 'green' as const,
+          },
+          {
+            label: 'Gastos Planejados', value: formatCurrency(totals.gastosPlanejados), icon: TrendingDown, tone: 'red' as const,
+          },
+          {
+            label: 'Balanço Planejado', value: formatCurrency(totals.balancoPlanejado), icon: Scale,
+            tone: totals.balancoPlanejado >= 0 ? 'green' as const : 'red' as const,
+          },
+          {
+            label: 'Economia Planejada', value: formatPercent(totals.economiaPlanejada), icon: PiggyBank,
+            tone: totals.economiaPlanejada >= 0 ? 'green' as const : 'red' as const,
+          },
+        ].map((item) => (
+          <div key={item.label} className="flex items-center justify-between gap-3 px-4 py-3.5">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className={cn(
+                'w-8 h-8 shrink-0 rounded-lg flex items-center justify-center',
+                item.tone === 'green' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'
+              )}>
+                <item.icon size={15} />
+              </div>
+              <span className="text-xs text-gray-500 font-medium truncate">{item.label}</span>
+            </div>
+            <span className={cn('text-sm font-bold whitespace-nowrap', item.tone === 'green' ? 'text-green-600' : 'text-red-600')}>
+              {item.value}
+            </span>
+          </div>
+        ))}
       </div>
 
       <EditMetaDialog
