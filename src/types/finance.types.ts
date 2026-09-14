@@ -115,3 +115,44 @@ export interface DashboardSummary {
   pct_gasta: number
 }
 
+// ── Contas Bancárias / Transações / Transferências ────────────────────────────
+export interface BankAccount {
+  id: string
+  user_id: string
+  name: string
+  balance: number
+  display_order: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface Transaction {
+  id: string
+  user_id: string
+  type: EntryType
+  category_id: string
+  bank_account_id: string
+  amount: number
+  date: string // 'YYYY-MM-DD'
+  description?: string | null
+  is_settled: boolean
+  is_ignored: boolean
+  installment_group_id?: string | null
+  installment_number?: number | null
+  installment_total?: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AccountTransfer {
+  id: string
+  user_id: string
+  from_account_id: string
+  to_account_id: string
+  amount: number
+  date: string // 'YYYY-MM-DD'
+  description?: string | null
+  created_at: string
+}
+

@@ -10,12 +10,18 @@ import { LoadingPage } from '@/components/shared/LoadingSpinner'
 import { KPICard } from '@/components/shared/KPICard'
 import { toast } from '@/hooks/useToast'
 import { useAuth } from '@/hooks/useAuth'
+import { TransactionDialog } from '@/components/entries/TransactionDialog'
+import { TransferDialog } from '@/components/entries/TransferDialog'
+import { AccountsTab } from '@/components/entries/AccountsTab'
 import type { Category, CategoryGroup, MonthlyEntryMap } from '@/types/finance.types'
 import { cn } from '@/lib/utils'
-import { ChevronDown, ChevronRight, TrendingUp, TrendingDown, DollarSign, Target, Download, Upload, CheckCircle, XCircle, FileSpreadsheet, X } from 'lucide-react'
+import {
+  ChevronDown, ChevronRight, TrendingUp, TrendingDown, DollarSign, Target, Download,
+  Upload, CheckCircle, XCircle, FileSpreadsheet, X, Plus, ArrowLeftRight,
+} from 'lucide-react'
 import {
   ComposedChart, BarChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  Legend, ResponsiveContainer
+  Legend, ResponsiveContainer, PieChart, Pie, Cell,
 } from 'recharts'
 
 // Nomes completos dos meses em português (evita tradução automática do browser)
@@ -399,9 +405,15 @@ function SummaryCards({ groups, chartGroups, categories, entryMap, type }: {
 }
 
 // ─── Resumo Anual (visão consolidada) ────────────────────────────────────────
+const PIE_PALETTE = [
+  '#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6',
+  '#EC4899', '#06B6D4', '#F97316', '#6366F1', '#84CC16',
+]
+
 function AnnualSummary({ categories, entryMap, year }: {
   categories: Record<CategoryGroup, Category[]>; entryMap: MonthlyEntryMap; year: number
 }) {
+  const incomeGroups: CategoryGroup[] = ['RENDA_PASSIVA', 'RENDA_ATIVA_PJ', 'RENDA_ATIVA_INV']
   const expenseGroups: CategoryGroup[] = ['DESPESAS_ESSENCIAIS', 'DESPESAS_DISCRICIONARIAS']
 
   // ── Renda Passiva Anual → espelha o total de "Proventos" da página Renda Investimentos ──
@@ -468,6 +480,19 @@ function AnnualSummary({ categories, entryMap, year }: {
       </div>
     )
   }
+
+  // ── Despesas / Receitas por categoria (total anual, para os 2 gráficos de pizza) ──
+  const despesasPorCategoria = expenseGroups.flatMap(g => categories[g] ?? [])
+    .map(cat => ({ name: cat.name, value: MONTHS.reduce((s, m) => s + (entryMap[cat.id]?.[m]?.realizado ?? 0), 0) }))
+    .filter(d => d.value > 0)
+    .sort((a, b) => b.value - a.value)
+    .map((d, i) => ({ ...d, color: PIE_PALETTE[i % PIE_PALETTE.length] }))
+
+  const receitasPorCategoria = incomeGroups.flatMap(g => categories[g] ?? [])
+    .map(cat => ({ name: cat.name, value: MONTHS.reduce((s, m) => s + (entryMap[cat.id]?.[m]?.realizado ?? 0), 0) }))
+    .filter(d => d.value > 0)
+    .sort((a, b) => b.value - a.value)
+    .map((d, i) => ({ ...d, color: PIE_PALETTE[i % PIE_PALETTE.length] }))
 
   return (
     <div className="space-y-6 mt-2">
@@ -550,6 +575,48 @@ function AnnualSummary({ categories, entryMap, year }: {
           </ResponsiveContainer>
         )}
       </div>
+
+      {/* ── Despesas e Receitas por Categoria (pizza) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+          <h3 className="text-sm font-bold text-gray-700 mb-4">Despesas por Categoria — {year}</h3>
+          {despesasPorCategoria.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-48 text-gray-400 gap-2">
+              <TrendingDown size={32} className="opacity-30" />
+              <p className="text-sm">Nenhuma despesa lançada em {year}</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={260}>
+              <PieChart>
+                <Pie data={despesasPorCategoria} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={2} dataKey="value">
+                  {despesasPorCategoria.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                </Pie>
+                <Tooltip formatter={(v) => formatCurrency(Number(v))} />
+                <Legend iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+          <h3 className="text-sm font-bold text-gray-700 mb-4">Receitas por Categoria — {year}</h3>
+          {receitasPorCategoria.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-48 text-gray-400 gap-2">
+              <TrendingUp size={32} className="opacity-30" />
+              <p className="text-sm">Nenhuma receita lançada em {year}</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={260}>
+              <PieChart>
+                <Pie data={receitasPorCategoria} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={2} dataKey="value">
+                  {receitasPorCategoria.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                </Pie>
+                <Tooltip formatter={(v) => formatCurrency(Number(v))} />
+                <Legend iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -615,10 +682,13 @@ export function EntriesPage() {
   const { data: entries = [], isLoading: loadingEntries } = useEntries(year)
   const upsert = useUpsertEntry()
 
-  const [activeTab, setActiveTab] = useState<'receitas' | 'despesas' | 'resumo'>('resumo')
+  const [activeTab, setActiveTab] = useState<'receitas' | 'despesas' | 'resumo' | 'contas'>('resumo')
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<{ success: number; errors: string[] } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [newReceitaOpen, setNewReceitaOpen] = useState(false)
+  const [newDespesaOpen, setNewDespesaOpen] = useState(false)
+  const [transferOpen, setTransferOpen] = useState(false)
 
   if (loadingCats || loadingEntries) return <LoadingPage />
 
@@ -715,9 +785,27 @@ export function EntriesPage() {
       {/* Cabeçalho */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-gray-900">Finanças Pessoais</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setNewReceitaOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
+          >
+            <Plus size={13} /> Nova Receita
+          </button>
+          <button
+            onClick={() => setNewDespesaOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors"
+          >
+            <Plus size={13} /> Nova Despesa
+          </button>
+          <button
+            onClick={() => setTransferOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-violet-700 bg-violet-50 border border-violet-200 rounded-lg hover:bg-violet-100 transition-colors"
+          >
+            <ArrowLeftRight size={13} /> Transferência
+          </button>
           {/* Botões de importação (só nas abas receitas/despesas) */}
-          {activeTab !== 'resumo' && (
+          {activeTab !== 'resumo' && activeTab !== 'contas' && (
             <>
               <button
                 onClick={downloadTemplate}
@@ -755,6 +843,7 @@ export function EntriesPage() {
           <TabsTrigger value="receitas">📈 Receitas</TabsTrigger>
           <TabsTrigger value="despesas">📉 Despesas</TabsTrigger>
           <TabsTrigger value="resumo">📊 Resumo Anual</TabsTrigger>
+          <TabsTrigger value="contas">🏦 Contas</TabsTrigger>
         </TabsList>
 
         <TabsContent value="receitas" className="space-y-5">
@@ -770,12 +859,20 @@ export function EntriesPage() {
         <TabsContent value="resumo" className="mt-2">
           <AnnualSummary categories={byGroup} entryMap={entryMap} year={year} />
         </TabsContent>
+
+        <TabsContent value="contas" className="mt-2">
+          <AccountsTab />
+        </TabsContent>
       </Tabs>
 
       {/* Modal de resultado */}
       {importResult && (
         <ImportResultModal result={importResult} onClose={() => setImportResult(null)} />
       )}
+
+      <TransactionDialog type="RECEITA" open={newReceitaOpen} onOpenChange={setNewReceitaOpen} />
+      <TransactionDialog type="DESPESA" open={newDespesaOpen} onOpenChange={setNewDespesaOpen} />
+      <TransferDialog open={transferOpen} onOpenChange={setTransferOpen} />
     </div>
   )
 }
