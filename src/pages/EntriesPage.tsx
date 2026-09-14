@@ -14,6 +14,7 @@ import { TransactionDialog } from '@/components/entries/TransactionDialog'
 import { TransferDialog } from '@/components/entries/TransferDialog'
 import { AccountsTab } from '@/components/entries/AccountsTab'
 import { TransactionsTab } from '@/components/entries/TransactionsTab'
+import { PlanningTab } from '@/components/entries/PlanningTab'
 import type { Category, CategoryGroup, MonthlyEntryMap } from '@/types/finance.types'
 import { cn } from '@/lib/utils'
 import {
@@ -683,7 +684,7 @@ export function EntriesPage() {
   const { data: entries = [], isLoading: loadingEntries } = useEntries(year)
   const upsert = useUpsertEntry()
 
-  const [activeTab, setActiveTab] = useState<'receitas' | 'despesas' | 'resumo' | 'contas' | 'transacoes'>('resumo')
+  const [activeTab, setActiveTab] = useState<'receitas' | 'despesas' | 'resumo' | 'contas' | 'transacoes' | 'planejamento'>('resumo')
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<{ success: number; errors: string[] } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -845,6 +846,7 @@ export function EntriesPage() {
           <TabsTrigger value="despesas">📉 Despesas</TabsTrigger>
           <TabsTrigger value="resumo">📊 Resumo Anual</TabsTrigger>
           <TabsTrigger value="transacoes">🧾 Transações</TabsTrigger>
+          <TabsTrigger value="planejamento">🗓️ Planejamento</TabsTrigger>
           <TabsTrigger value="contas">🏦 Contas</TabsTrigger>
         </TabsList>
 
@@ -864,6 +866,10 @@ export function EntriesPage() {
 
         <TabsContent value="transacoes" className="mt-2">
           <TransactionsTab />
+        </TabsContent>
+
+        <TabsContent value="planejamento" className="mt-2">
+          <PlanningTab />
         </TabsContent>
 
         <TabsContent value="contas" className="mt-2">
