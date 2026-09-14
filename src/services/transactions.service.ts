@@ -38,3 +38,33 @@ export async function deleteTransaction(id: string): Promise<void> {
   const { error } = await supabase.from('transactions').delete().eq('id', id)
   if (error) throw error
 }
+
+/** Future installments of the same group (installment_number greater than the given one). */
+export async function fetchFutureInstallments(groupId: string, afterNumber: number): Promise<Transaction[]> {
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('*')
+    .eq('installment_group_id', groupId)
+    .gt('installment_number', afterNumber)
+
+  if (error) throw error
+  return data as Transaction[]
+}
+
+export async function updateTransactionsBulk(ids: string[], updates: Partial<NewTransaction>): Promise<void> {
+  if (ids.length === 0) return
+  const { error } = await supabase.from('transactions').update(updates).in('id', ids)
+  if (error) throw error
+}
+
+export async function deleteTransactionsBulk(ids: string[]): Promise<void> {
+  if (ids.length === 0) return
+  const { error } = await supabase.from('transactions').delete().in('id', ids)
+  if (error) throw error
+}
+
+export async function setTransactionsSettled(ids: string[], is_settled: boolean): Promise<void> {
+  if (ids.length === 0) return
+  const { error } = await supabase.from('transactions').update({ is_settled }).in('id', ids)
+  if (error) throw error
+}

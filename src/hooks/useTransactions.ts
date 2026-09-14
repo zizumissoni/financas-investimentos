@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth'
 import {
   fetchTransactions, createTransaction, createTransactions,
   updateTransaction, deleteTransaction,
+  updateTransactionsBulk, deleteTransactionsBulk, setTransactionsSettled,
 } from '@/services/transactions.service'
 
 // A transaction write affects monthly_entries (any year, via installments spanning
@@ -56,6 +57,34 @@ export function useDeleteTransaction() {
   const { user } = useAuth()
   return useMutation({
     mutationFn: deleteTransaction,
+    onSuccess: () => invalidateAffected(qc, user?.id),
+  })
+}
+
+export function useUpdateTransactionsBulk() {
+  const qc = useQueryClient()
+  const { user } = useAuth()
+  return useMutation({
+    mutationFn: ({ ids, updates }: { ids: string[]; updates: Parameters<typeof updateTransactionsBulk>[1] }) =>
+      updateTransactionsBulk(ids, updates),
+    onSuccess: () => invalidateAffected(qc, user?.id),
+  })
+}
+
+export function useDeleteTransactionsBulk() {
+  const qc = useQueryClient()
+  const { user } = useAuth()
+  return useMutation({
+    mutationFn: deleteTransactionsBulk,
+    onSuccess: () => invalidateAffected(qc, user?.id),
+  })
+}
+
+export function useSetTransactionsSettled() {
+  const qc = useQueryClient()
+  const { user } = useAuth()
+  return useMutation({
+    mutationFn: ({ ids, is_settled }: { ids: string[]; is_settled: boolean }) => setTransactionsSettled(ids, is_settled),
     onSuccess: () => invalidateAffected(qc, user?.id),
   })
 }

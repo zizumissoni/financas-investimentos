@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useCategoriesByGroup } from '@/hooks/useCategories'
 import { useBankAccounts } from '@/hooks/useBankAccounts'
-import { useCreateTransaction, useCreateTransactions, useUpdateTransaction } from '@/hooks/useTransactions'
+import { useCreateTransaction, useCreateTransactions, useUpdateTransaction, useUpdateTransactionsBulk } from '@/hooks/useTransactions'
+import { fetchFutureInstallments } from '@/services/transactions.service'
 import { CATEGORY_GROUP_LABELS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { toast } from '@/hooks/useToast'
@@ -22,6 +23,14 @@ const EXPENSE_GROUPS: CategoryGroup[] = ['DESPESAS_ESSENCIAIS', 'DESPESAS_DISCRI
 function todayISO() { return new Date().toISOString().slice(0, 10) }
 function yesterdayISO() { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10) }
 
+// Toda parcela leva o número da parcela na descrição, ex: "Cartão (2/6)"
+const INSTALLMENT_SUFFIX_RE = / \(\d+\/\d+\)$/
+function baseDescription(desc: string) { return desc.replace(INSTALLMENT_SUFFIX_RE, '') }
+function withInstallmentSuffix(desc: string, n: number, total: number) {
+  const base = desc.trim() || 'Despesa parcelada'
+  return `${base} (${n}/${total})`
+}
+
 const BLANK_FORM = () => ({
   amount: '',
   is_settled: true,
@@ -38,7 +47,7 @@ function formFromTransaction(t: Transaction): ReturnType<typeof BLANK_FORM> {
     amount: String(t.amount),
     is_settled: t.is_settled,
     date: t.date,
-    description: t.description ?? '',
+    description: baseDescription(t.description ?? ''),
     category_id: t.category_id,
     bank_account_id: t.bank_account_id,
     is_ignored: t.is_ignored,
@@ -58,11 +67,18 @@ export function TransactionDialog({ type, open, onOpenChange, editing }: {
   const createOne = useCreateTransaction()
   const createMany = useCreateTransactions()
   const updateOne = useUpdateTransaction()
+  const updateBulk = useUpdateTransactionsBulk()
 
   // `editing` dialogs are mounted fresh per edit (parent conditionally renders
   // them), so a lazy initializer is enough to prefill the form — no effect needed.
   const [form, setForm] = useState(() => (editing ? formFromTransaction(editing) : BLANK_FORM()))
   const [dateMode, setDateMode] = useState<'hoje' | 'ontem' | 'outros'>(() => (editing ? 'outros' : 'hoje'))
+  const [applyToFuture, setApplyToFuture] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+
+  const hasFutureInstallments = !!editing?.installment_group_id
+    && !!editing.installment_total && !!editing.installment_number
+    && editing.installment_number < editing.installment_total
 
   const groups = type === 'RECEITA' ? INCOME_GROUPS : EXPENSE_GROUPS
   const isDespesa = type === 'DESPESA'
@@ -86,21 +102,41 @@ export function TransactionDialog({ type, open, onOpenChange, editing }: {
     if (!form.category_id) { toast({ title: 'Selecione uma categoria', variant: 'destructive' }); return }
     if (!form.bank_account_id) { toast({ title: 'Selecione uma conta bancária', variant: 'destructive' }); return }
 
+    setIsSaving(true)
     try {
       const base = {
         user_id: user!.id,
         type,
         category_id: form.category_id,
         bank_account_id: form.bank_account_id,
-        description: form.description || null,
         is_ignored: form.is_ignored,
       }
 
       if (isEditing) {
+        const isInstallment = !!editing.installment_total && editing.installment_total > 1
+        const description = isInstallment
+          ? withInstallmentSuffix(form.description, editing.installment_number!, editing.installment_total!)
+          : (form.description || null)
+
         await updateOne.mutateAsync({
           id: editing.id,
-          updates: { ...base, amount, date: form.date, is_settled: form.is_settled },
+          updates: { ...base, description, amount, date: form.date, is_settled: form.is_settled },
         })
+
+        if (isInstallment && applyToFuture && editing.installment_group_id) {
+          const future = await fetchFutureInstallments(editing.installment_group_id, editing.installment_number!)
+          for (const row of future) {
+            await updateBulk.mutateAsync({
+              ids: [row.id],
+              updates: {
+                category_id: form.category_id,
+                bank_account_id: form.bank_account_id,
+                is_ignored: form.is_ignored,
+                description: withInstallmentSuffix(form.description, row.installment_number!, row.installment_total!),
+              },
+            })
+          }
+        }
       } else if (isDespesa && form.installments > 1) {
         const n = form.installments
         const share = Math.round((amount / n) * 100) / 100
@@ -111,6 +147,7 @@ export function TransactionDialog({ type, open, onOpenChange, editing }: {
           d.setMonth(d.getMonth() + i)
           return {
             ...base,
+            description: withInstallmentSuffix(form.description, i + 1, n),
             amount: i === n - 1 ? lastShare : share,
             date: d.toISOString().slice(0, 10),
             is_settled: i === 0, // só a 1ª parcela debita o saldo agora
@@ -121,7 +158,7 @@ export function TransactionDialog({ type, open, onOpenChange, editing }: {
         })
         await createMany.mutateAsync(rows)
       } else {
-        await createOne.mutateAsync({ ...base, amount, date: form.date, is_settled: form.is_settled })
+        await createOne.mutateAsync({ ...base, description: form.description || null, amount, date: form.date, is_settled: form.is_settled })
       }
 
       toast({ title: isEditing ? 'Lançamento atualizado!' : type === 'RECEITA' ? 'Receita salva!' : 'Despesa salva!', variant: 'success' })
@@ -129,10 +166,12 @@ export function TransactionDialog({ type, open, onOpenChange, editing }: {
       else onOpenChange(false)
     } catch (e: unknown) {
       toast({ title: 'Erro ao salvar', description: (e as Error).message, variant: 'destructive' })
+    } finally {
+      setIsSaving(false)
     }
   }
 
-  const isPending = createOne.isPending || createMany.isPending || updateOne.isPending
+  const isPending = createOne.isPending || createMany.isPending || updateOne.isPending || isSaving
 
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) reset() }}>
@@ -237,9 +276,22 @@ export function TransactionDialog({ type, open, onOpenChange, editing }: {
           )}
 
           {isEditing && editing?.installment_total && editing.installment_total > 1 && (
-            <p className="text-xs text-gray-400">
-              Parcela {editing.installment_number}/{editing.installment_total} — editar aqui altera só esta parcela.
-            </p>
+            <div className="space-y-2">
+              <p className="text-xs text-gray-400">
+                Parcela {editing.installment_number}/{editing.installment_total}
+              </p>
+              {hasFutureInstallments && (
+                <div className="flex items-center justify-between py-1">
+                  <div>
+                    <Label className="text-sm">Aplicar às próximas parcelas</Label>
+                    <p className="text-xs text-gray-400">
+                      Categoria, conta e descrição também mudam nas parcelas {editing.installment_number! + 1} a {editing.installment_total}
+                    </p>
+                  </div>
+                  <Switch checked={applyToFuture} onCheckedChange={setApplyToFuture} />
+                </div>
+              )}
+            </div>
           )}
         </div>
         <DialogFooter>

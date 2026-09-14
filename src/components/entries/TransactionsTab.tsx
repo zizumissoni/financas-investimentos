@@ -2,21 +2,29 @@ import { useMemo, useState } from 'react'
 import { useYear } from '@/contexts/YearContext'
 import { useCategoriesByGroup } from '@/hooks/useCategories'
 import { useBankAccounts } from '@/hooks/useBankAccounts'
-import { useTransactions, useDeleteTransaction } from '@/hooks/useTransactions'
+import {
+  useTransactions, useDeleteTransaction, useDeleteTransactionsBulk, useSetTransactionsSettled,
+} from '@/hooks/useTransactions'
+import { fetchFutureInstallments } from '@/services/transactions.service'
 import { useTransfers, useDeleteTransfer } from '@/hooks/useTransfers'
 import { formatCurrency, cn } from '@/lib/utils'
 import { toast } from '@/hooks/useToast'
 import { KPICard } from '@/components/shared/KPICard'
 import { LoadingPage } from '@/components/shared/LoadingSpinner'
 import { EmptyState } from '@/components/shared/EmptyState'
-import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { TransactionDialog } from '@/components/entries/TransactionDialog'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+} from '@/components/ui/dialog'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import {
   Receipt, TrendingUp, TrendingDown, Scale, CheckCircle2, Clock, EyeOff,
-  ArrowLeftRight, Pencil, Trash2,
+  ArrowLeftRight, Pencil, Trash2, CheckSquare,
 } from 'lucide-react'
 import type { Transaction, AccountTransfer } from '@/types/finance.types'
 
@@ -43,14 +51,80 @@ type LedgerRow = {
   transfer?: AccountTransfer
 }
 
+// ─── Diálogo de exclusão (com opção de cascata para parcelas futuras) ─────────
+function DeleteRowDialog({ row, onOpenChange }: { row: LedgerRow | null; onOpenChange: (v: boolean) => void }) {
+  const deleteTransaction = useDeleteTransaction()
+  const deleteTransfer = useDeleteTransfer()
+  const deleteBulk = useDeleteTransactionsBulk()
+  const [cascade, setCascade] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const tx = row?.transaction
+  const hasFutureInstallments = !!tx?.installment_group_id && !!tx.installment_total && !!tx.installment_number
+    && tx.installment_number < tx.installment_total
+
+  async function handleConfirm() {
+    if (!row) return
+    setIsDeleting(true)
+    try {
+      if (row.transfer) {
+        await deleteTransfer.mutateAsync(row.transfer.id)
+      } else if (tx) {
+        if (cascade && hasFutureInstallments) {
+          const future = await fetchFutureInstallments(tx.installment_group_id!, tx.installment_number!)
+          await deleteBulk.mutateAsync([tx.id, ...future.map((f) => f.id)])
+        } else {
+          await deleteTransaction.mutateAsync(tx.id)
+        }
+      }
+      toast({ title: 'Lançamento excluído — saldos e categorias atualizados', variant: 'success' })
+      onOpenChange(false)
+    } catch (e: unknown) {
+      toast({ title: 'Erro ao excluir', description: (e as Error).message, variant: 'destructive' })
+    } finally {
+      setIsDeleting(false)
+      setCascade(false)
+    }
+  }
+
+  return (
+    <Dialog open={!!row} onOpenChange={(v) => { onOpenChange(v); if (!v) setCascade(false) }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Excluir lançamento?</DialogTitle>
+          <DialogDescription>
+            O saldo da conta e o total da categoria em Receitas/Despesas serão recalculados automaticamente.
+          </DialogDescription>
+        </DialogHeader>
+        {hasFutureInstallments && (
+          <div className="flex items-center justify-between py-1">
+            <div>
+              <Label className="text-sm">Excluir também as próximas parcelas</Label>
+              <p className="text-xs text-gray-400">
+                Parcelas {tx!.installment_number! + 1} a {tx!.installment_total} também serão excluídas
+              </p>
+            </div>
+            <Switch checked={cascade} onCheckedChange={setCascade} />
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isDeleting}>Cancelar</Button>
+          <Button variant="destructive" onClick={handleConfirm} disabled={isDeleting}>
+            {isDeleting ? 'Aguarde...' : 'Excluir'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function TransactionsTab() {
   const { year } = useYear()
   const { categories } = useCategoriesByGroup()
   const { data: bankAccounts = [] } = useBankAccounts()
   const { data: transactions = [], isLoading: loadingTx } = useTransactions(year)
   const { data: transfers = [], isLoading: loadingTr } = useTransfers()
-  const deleteTransaction = useDeleteTransaction()
-  const deleteTransfer = useDeleteTransfer()
+  const setSettled = useSetTransactionsSettled()
 
   const [timeMode, setTimeMode] = useState<'anual' | 'mensal' | 'custom'>('mensal')
   const [filterMonth, setFilterMonth] = useState(new Date().getMonth() + 1)
@@ -61,6 +135,7 @@ export function TransactionsTab() {
 
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [deleteRow, setDeleteRow] = useState<LedgerRow | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories])
   const accountMap = useMemo(() => new Map(bankAccounts.map((a) => [a.id, a.name])), [bankAccounts])
@@ -117,22 +192,36 @@ export function TransactionsTab() {
     return timeOk && catOk && accOk
   }), [rows, timeMode, filterMonth, customFrom, customTo, categoryFilter, accountFilter])
 
+  // Só transações (não transferências) participam da seleção/pagamento em lote
+  const selectableRows = useMemo(() => filteredRows.filter((r) => !!r.transaction), [filteredRows])
+  const allSelected = selectableRows.length > 0 && selectableRows.every((r) => selectedIds.has(r.id))
+
+  function toggleRow(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleAll() {
+    setSelectedIds(allSelected ? new Set() : new Set(selectableRows.map((r) => r.id)))
+  }
+
+  async function handleBatchSettle() {
+    try {
+      await setSettled.mutateAsync({ ids: [...selectedIds], is_settled: true })
+      toast({ title: `${selectedIds.size} lançamento(s) marcado(s) como pago(s)`, variant: 'success' })
+      setSelectedIds(new Set())
+    } catch (e: unknown) {
+      toast({ title: 'Erro ao processar pagamento em lote', description: (e as Error).message, variant: 'destructive' })
+    }
+  }
+
   const totalReceitas = filteredRows.filter((r) => r.kind === 'RECEITA' && !r.isIgnored).reduce((s, r) => s + r.amount, 0)
   const totalDespesas = filteredRows.filter((r) => r.kind === 'DESPESA' && !r.isIgnored).reduce((s, r) => s + Math.abs(r.amount), 0)
   const saldoPeriodo = totalReceitas - totalDespesas
-
-  async function handleDelete() {
-    if (!deleteRow) return
-    try {
-      if (deleteRow.transaction) await deleteTransaction.mutateAsync(deleteRow.transaction.id)
-      else if (deleteRow.transfer) await deleteTransfer.mutateAsync(deleteRow.transfer.id)
-      toast({ title: 'Lançamento excluído — saldos e categorias atualizados', variant: 'success' })
-    } catch (e: unknown) {
-      toast({ title: 'Erro ao excluir', description: (e as Error).message, variant: 'destructive' })
-    } finally {
-      setDeleteRow(null)
-    }
-  }
 
   if (loadingTx || loadingTr) return <LoadingPage />
 
@@ -201,6 +290,16 @@ export function TransactionsTab() {
         </div>
       </div>
 
+      {/* ── Barra de ação em lote ── */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5">
+          <span className="text-xs font-semibold text-blue-700">{selectedIds.size} selecionada(s)</span>
+          <Button size="sm" onClick={handleBatchSettle} disabled={setSettled.isPending}>
+            <CheckSquare size={14} /> Marcar como Paga(s)/Recebida(s)
+          </Button>
+        </div>
+      )}
+
       {/* ── Tabela ── */}
       {filteredRows.length === 0 ? (
         <EmptyState
@@ -213,6 +312,10 @@ export function TransactionsTab() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
+                <th className="px-3 py-3 text-center">
+                  <input type="checkbox" checked={allSelected} onChange={toggleAll}
+                    className="rounded border-gray-300 cursor-pointer" title="Selecionar todas" />
+                </th>
                 <th className="text-center px-3 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Situação</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Data</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Descrição</th>
@@ -224,7 +327,13 @@ export function TransactionsTab() {
             </thead>
             <tbody>
               {filteredRows.map((r) => (
-                <tr key={`${r.kind}-${r.id}`} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50">
+                <tr key={`${r.kind}-${r.id}`} className={cn('border-b border-gray-50 last:border-0 hover:bg-gray-50/50', selectedIds.has(r.id) && 'bg-blue-50/40')}>
+                  <td className="px-3 py-2.5 text-center">
+                    {r.transaction && (
+                      <input type="checkbox" checked={selectedIds.has(r.id)} onChange={() => toggleRow(r.id)}
+                        className="rounded border-gray-300 cursor-pointer" />
+                    )}
+                  </td>
                   <td className="px-3 py-2.5 text-center">
                     {r.isIgnored
                       ? <EyeOff size={15} className="text-gray-300 inline" />
@@ -242,7 +351,7 @@ export function TransactionsTab() {
                   <td className="px-4 py-2.5 text-gray-500 text-xs">{r.accountName}</td>
                   <td className={cn('px-4 py-2.5 text-right font-semibold',
                     r.kind === 'RECEITA' ? 'text-green-600' : r.kind === 'DESPESA' ? 'text-red-600' : 'text-violet-600')}>
-                    {r.kind === 'TRANSFERENCIA' ? formatCurrency(r.amount) : formatCurrency(r.amount)}
+                    {formatCurrency(r.amount)}
                   </td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center justify-center gap-1">
@@ -274,16 +383,7 @@ export function TransactionsTab() {
         />
       )}
 
-      <ConfirmDialog
-        open={!!deleteRow}
-        onOpenChange={(v) => { if (!v) setDeleteRow(null) }}
-        title="Excluir lançamento?"
-        description="O saldo da conta e o total da categoria em Receitas/Despesas serão recalculados automaticamente."
-        confirmLabel="Excluir"
-        variant="destructive"
-        onConfirm={handleDelete}
-        loading={deleteTransaction.isPending || deleteTransfer.isPending}
-      />
+      <DeleteRowDialog row={deleteRow} onOpenChange={(v) => { if (!v) setDeleteRow(null) }} />
     </div>
   )
 }
