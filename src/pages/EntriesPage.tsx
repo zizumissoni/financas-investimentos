@@ -516,6 +516,12 @@ function AnnualSummary({ categories, entryMap, year }: {
     .sort((a, b) => b.value - a.value)
     .map((d, i) => ({ ...d, color: PIE_PALETTE[i % PIE_PALETTE.length] }))
 
+  // ── Top 7 categorias (para o card de ranking abaixo dos gráficos) ──
+  const totalDespesasCat = despesasPorCategoria.reduce((s, d) => s + d.value, 0)
+  const totalReceitasCat = receitasPorCategoria.reduce((s, d) => s + d.value, 0)
+  const top7Despesas = despesasPorCategoria.slice(0, 7)
+  const top7Receitas = receitasPorCategoria.slice(0, 7)
+
   return (
     <div className="space-y-6 mt-2">
       {/* ── 4 Cards principais ── */}
@@ -636,6 +642,50 @@ function AnnualSummary({ categories, entryMap, year }: {
                 <Legend iconSize={8} wrapperStyle={{ fontSize: 11 }} />
               </PieChart>
             </ResponsiveContainer>
+          )}
+        </div>
+      </div>
+
+      {/* ── Top 7 categorias — Despesas e Receitas ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+          <h3 className="text-sm font-bold text-gray-700 mb-4">Top 7 Despesas por Categoria — {year}</h3>
+          {top7Despesas.length === 0 ? (
+            <p className="text-sm text-gray-400">Nenhuma despesa lançada em {year}</p>
+          ) : (
+            <div className="space-y-3">
+              {top7Despesas.map((d, i) => (
+                <div key={d.name} className="flex items-center gap-3">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
+                  <span className="text-xs text-gray-500 w-4 shrink-0">{i + 1}º</span>
+                  <span className="text-sm text-gray-700 flex-1 truncate">{d.name}</span>
+                  <span className="text-sm font-semibold text-gray-800 whitespace-nowrap">{formatCurrency(d.value)}</span>
+                  <span className="text-xs font-semibold text-red-600 w-14 text-right shrink-0">
+                    {formatPercent(totalDespesasCat > 0 ? (d.value / totalDespesasCat) * 100 : 0)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+          <h3 className="text-sm font-bold text-gray-700 mb-4">Top 7 Receitas por Categoria — {year}</h3>
+          {top7Receitas.length === 0 ? (
+            <p className="text-sm text-gray-400">Nenhuma receita lançada em {year}</p>
+          ) : (
+            <div className="space-y-3">
+              {top7Receitas.map((d, i) => (
+                <div key={d.name} className="flex items-center gap-3">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
+                  <span className="text-xs text-gray-500 w-4 shrink-0">{i + 1}º</span>
+                  <span className="text-sm text-gray-700 flex-1 truncate">{d.name}</span>
+                  <span className="text-sm font-semibold text-gray-800 whitespace-nowrap">{formatCurrency(d.value)}</span>
+                  <span className="text-xs font-semibold text-green-600 w-14 text-right shrink-0">
+                    {formatPercent(totalReceitasCat > 0 ? (d.value / totalReceitasCat) * 100 : 0)}
+                  </span>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>
