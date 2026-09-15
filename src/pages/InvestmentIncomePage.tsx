@@ -376,12 +376,17 @@ export function InvestmentIncomePage() {
   const totalProventos = filteredRecords.filter(r => PROVENTO_TYPES.includes(r.record_type)).reduce((s,r) => s + Number(r.amount), 0)
   const totalVendas    = filteredRecords.filter(r => r.record_type === 'VENDA').reduce((s,r) => s + Number(r.amount), 0)
   const totalGeral     = totalProventos + totalVendas
-  const monthsWithData = new Set(filteredRecords.map(r => r.month)).size
-  const mediaMonsal    = monthsWithData > 0 ? totalGeral / monthsWithData : 0
+
+  // Meses fechados (já encerrados) do ano — usado nas médias mensais abaixo
+  const lastClosedMonth = year < getCurrentYear() ? 12 : year === getCurrentYear() ? getCurrentMonth() - 1 : 0
+  const closedRecords = filteredRecords.filter(r => r.month <= lastClosedMonth)
+
+  const monthsWithData = new Set(closedRecords.map(r => r.month)).size
+  const totalGeralClosed = closedRecords.reduce((s, r) => s + Number(r.amount), 0)
+  const mediaMonsal    = monthsWithData > 0 ? totalGeralClosed / monthsWithData : 0
 
   // Média mensal de Proventos considerando apenas meses fechados (já encerrados) do ano
-  const lastClosedMonth = year < getCurrentYear() ? 12 : year === getCurrentYear() ? getCurrentMonth() - 1 : 0
-  const proventoRecordsClosed = filteredRecords.filter(r => PROVENTO_TYPES.includes(r.record_type) && r.month <= lastClosedMonth)
+  const proventoRecordsClosed = closedRecords.filter(r => PROVENTO_TYPES.includes(r.record_type))
   const totalProventosClosed  = proventoRecordsClosed.reduce((s, r) => s + Number(r.amount), 0)
   const closedMonthsWithData  = new Set(proventoRecordsClosed.map(r => r.month)).size
   const mediaProventosMensal  = closedMonthsWithData > 0 ? totalProventosClosed / closedMonthsWithData : 0
@@ -620,7 +625,7 @@ export function InvestmentIncomePage() {
         />
         <KPICard title="Vendas" value={formatCurrency(totalVendas)} subtitle={totalVendas >= 0 ? 'Lucro com vendas' : 'Perda com vendas'} />
         <KPICard title="Total Geral" value={formatCurrency(totalGeral)} subtitle={`${filteredRecords.length} lançamentos`} />
-        <KPICard title="Média Mensal (Considerando Vendas)" value={formatCurrency(mediaMonsal)} subtitle={`${monthsWithData} mês(es) com dados`} />
+        <KPICard title="Média Mensal (Considerando Vendas)" value={formatCurrency(mediaMonsal)} subtitle={`${monthsWithData} mês(es) fechados com dados`} />
       </div>
 
       {/* ── Seletor Temporal ── */}
