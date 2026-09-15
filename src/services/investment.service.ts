@@ -16,17 +16,30 @@ export async function fetchInvestmentRecords(
   return data as InvestmentRecord[]
 }
 
+/** Paginated: PostgREST caps a single request at 1000 rows, and this table grows over time. */
 export async function fetchAllInvestmentRecords(
   userId: string
 ): Promise<InvestmentRecord[]> {
-  const { data, error } = await supabase
-    .from('investment_records')
-    .select('*')
-    .eq('user_id', userId)
-    .order('year', { ascending: false })
-    .order('month', { ascending: false })
-  if (error) throw error
-  return data as InvestmentRecord[]
+  const PAGE_SIZE = 1000
+  const all: InvestmentRecord[] = []
+  let from = 0
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('investment_records')
+      .select('*')
+      .eq('user_id', userId)
+      .order('year', { ascending: false })
+      .order('month', { ascending: false })
+      .range(from, from + PAGE_SIZE - 1)
+
+    if (error) throw error
+    all.push(...(data as InvestmentRecord[]))
+    if (!data || data.length < PAGE_SIZE) break
+    from += PAGE_SIZE
+  }
+
+  return all
 }
 
 export async function createInvestmentRecord(
