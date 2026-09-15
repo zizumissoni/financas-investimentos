@@ -7,7 +7,9 @@
  *
  * Rules (category name → filter on investment_records):
  *  - Rendimentos de FIIs    ← class = FII  AND type = RENDIMENTO (exclui vendas)
- *  - Venda de FIIs         ← class = FII  AND type = VENDA
+ *  - Venda de FIIs         ← class = FII  AND type = VENDA (aceita valores negativos)
+ *  - Venda Ações BR-Trib   ← class = ACAO_BR  AND type = VENDA (aceita valores negativos)
+ *  - Venda Criptos         ← class = CRIPTO  AND type = VENDA (aceita valores negativos)
  *  - JCP                   ← class = ACAO_BR  AND type = JCP
  *  - Dividendos-Ações BR   ← class = ACAO_BR  AND type = DIVIDENDO
  *  - Exterior-Dividendos   ← class = EUA_RENDA  (any type)
@@ -33,6 +35,14 @@ export const INVESTMENT_SYNC_MAPPINGS: Mapping[] = [
   {
     categoryName: 'Venda de FIIs',
     filter: (r) => r.asset_class === 'FII' && r.record_type === 'VENDA',
+  },
+  {
+    categoryName: 'Venda Ações BR-Trib',
+    filter: (r) => r.asset_class === 'ACAO_BR' && r.record_type === 'VENDA',
+  },
+  {
+    categoryName: 'Venda Criptos',
+    filter: (r) => r.asset_class === 'CRIPTO' && r.record_type === 'VENDA',
   },
   {
     categoryName: 'JCP',
