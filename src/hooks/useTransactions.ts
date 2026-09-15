@@ -12,6 +12,7 @@ import {
 function invalidateAffected(qc: ReturnType<typeof useQueryClient>, userId?: string) {
   qc.invalidateQueries({ queryKey: ['transactions', userId] })
   qc.invalidateQueries({ queryKey: ['entries', userId] })
+  qc.invalidateQueries({ queryKey: ['entries-all', userId] })
   qc.invalidateQueries({ queryKey: ['bank-accounts', userId] })
 }
 

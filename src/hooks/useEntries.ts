@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/hooks/useAuth'
-import { fetchEntries, upsertEntry } from '@/services/entries.service'
+import { fetchEntries, fetchAllEntries, upsertEntry } from '@/services/entries.service'
 import type { Category, MonthlyEntry, MonthlyEntryMap } from '@/types/finance.types'
 
 export function buildEntryMap(categories: Category[], entries: MonthlyEntry[]): MonthlyEntryMap {
@@ -32,6 +32,15 @@ export function useEntries(year: number) {
   })
 }
 
+export function useAllEntries() {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['entries-all', user?.id],
+    queryFn: () => fetchAllEntries(user!.id),
+    enabled: !!user,
+  })
+}
+
 export function useUpsertEntry() {
   const qc = useQueryClient()
   const { user } = useAuth()
@@ -40,6 +49,7 @@ export function useUpsertEntry() {
     mutationFn: upsertEntry,
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ['entries', user?.id, variables.year] })
+      qc.invalidateQueries({ queryKey: ['entries-all', user?.id] })
     },
   })
 }

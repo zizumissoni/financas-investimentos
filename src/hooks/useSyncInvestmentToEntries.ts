@@ -22,6 +22,7 @@ export function useSyncInvestmentToEntries() {
     try {
       const result = await syncInvestmentToEntries(user.id, year, categories)
       qc.invalidateQueries({ queryKey: ['entries', user.id, year] })
+      qc.invalidateQueries({ queryKey: ['entries-all', user.id] })
       return result
     } catch (err) {
       console.error('[investmentSync] Failed to sync to entries:', err)

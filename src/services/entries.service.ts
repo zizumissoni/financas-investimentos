@@ -12,6 +12,17 @@ export async function fetchEntries(userId: string, year: number): Promise<Monthl
   return data as MonthlyEntry[]
 }
 
+/** All monthly_entries across every year — used by the Histórico Anual tab. */
+export async function fetchAllEntries(userId: string): Promise<MonthlyEntry[]> {
+  const { data, error } = await supabase
+    .from('monthly_entries')
+    .select('*')
+    .eq('user_id', userId)
+
+  if (error) throw error
+  return data as MonthlyEntry[]
+}
+
 export async function upsertEntry(entry: {
   user_id: string
   category_id: string
