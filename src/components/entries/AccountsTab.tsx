@@ -57,6 +57,7 @@ function EditBalanceDialog({ account, onOpenChange }: { account: BankAccount | n
 export function AccountsTab() {
   const { user } = useAuth()
   const { data: accounts = [], isLoading } = useBankAccounts()
+  const sortedAccounts = [...accounts].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
   const createAccount = useCreateBankAccount()
   const deleteAccount = useDeleteBankAccount()
 
@@ -111,7 +112,7 @@ export function AccountsTab() {
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {accounts.map((a) => (
+          {sortedAccounts.map((a) => (
             <div key={a.id} className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">

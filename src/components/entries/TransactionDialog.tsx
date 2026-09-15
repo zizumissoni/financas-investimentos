@@ -80,6 +80,10 @@ export function TransactionDialog({ type, open, onOpenChange, editing }: {
     && !!editing.installment_total && !!editing.installment_number
     && editing.installment_number < editing.installment_total
 
+  // Conta padrão para novos lançamentos: BTG - C/C (o usuário ainda pode trocar)
+  const defaultAccountId = bankAccounts.find((a) => a.name === 'BTG - C/C')?.id ?? ''
+  const effectiveAccountId = form.bank_account_id || defaultAccountId
+
   const groups = type === 'RECEITA' ? INCOME_GROUPS : EXPENSE_GROUPS
   const isDespesa = type === 'DESPESA'
   const isEditing = !!editing
@@ -100,7 +104,7 @@ export function TransactionDialog({ type, open, onOpenChange, editing }: {
     const amount = parseFloat(form.amount)
     if (!amount || amount <= 0) { toast({ title: 'Informe um valor válido', variant: 'destructive' }); return }
     if (!form.category_id) { toast({ title: 'Selecione uma categoria', variant: 'destructive' }); return }
-    if (!form.bank_account_id) { toast({ title: 'Selecione uma conta bancária', variant: 'destructive' }); return }
+    if (!effectiveAccountId) { toast({ title: 'Selecione uma conta bancária', variant: 'destructive' }); return }
 
     setIsSaving(true)
     try {
@@ -108,7 +112,7 @@ export function TransactionDialog({ type, open, onOpenChange, editing }: {
         user_id: user!.id,
         type,
         category_id: form.category_id,
-        bank_account_id: form.bank_account_id,
+        bank_account_id: effectiveAccountId,
         is_ignored: form.is_ignored,
       }
 
@@ -130,7 +134,7 @@ export function TransactionDialog({ type, open, onOpenChange, editing }: {
               ids: [row.id],
               updates: {
                 category_id: form.category_id,
-                bank_account_id: form.bank_account_id,
+                bank_account_id: effectiveAccountId,
                 is_ignored: form.is_ignored,
                 description: withInstallmentSuffix(form.description, row.installment_number!, row.installment_total!),
               },
@@ -245,7 +249,7 @@ export function TransactionDialog({ type, open, onOpenChange, editing }: {
 
           <div className="space-y-1.5">
             <Label>Conta Bancária</Label>
-            <Select value={form.bank_account_id} onValueChange={(v) => setForm((p) => ({ ...p, bank_account_id: v }))}>
+            <Select value={effectiveAccountId} onValueChange={(v) => setForm((p) => ({ ...p, bank_account_id: v }))}>
               <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
               <SelectContent>{bankAccounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent>
             </Select>
