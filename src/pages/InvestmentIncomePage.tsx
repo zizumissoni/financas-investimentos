@@ -391,6 +391,12 @@ export function InvestmentIncomePage() {
   const closedMonthsWithData  = new Set(proventoRecordsClosed.map(r => r.month)).size
   const mediaProventosMensal  = closedMonthsWithData > 0 ? totalProventosClosed / closedMonthsWithData : 0
 
+  // Média mensal do lucro com vendas: só meses fechados que tenham lançamento de venda
+  const vendaRecordsClosed   = closedRecords.filter(r => r.record_type === 'VENDA')
+  const totalVendasClosed    = vendaRecordsClosed.reduce((s, r) => s + Number(r.amount), 0)
+  const vendaMonthsWithData  = new Set(vendaRecordsClosed.map(r => r.month)).size
+  const mediaVendasMensal    = vendaMonthsWithData > 0 ? totalVendasClosed / vendaMonthsWithData : 0
+
   // ── Dados dos gráficos ────────────────────────────────────────────────────
   const activeClasses = useMemo(() => [...new Set(filteredRecords.map(r => r.asset_class))] as AssetClass[], [filteredRecords])
 
@@ -623,7 +629,11 @@ export function InvestmentIncomePage() {
           icon={<TrendingUp size={18} />}
           subtitle={`Dividendos, juros, rendimentos · Média mensal (meses fechados): ${formatCurrency(mediaProventosMensal)}`}
         />
-        <KPICard title="Vendas" value={formatCurrency(totalVendas)} subtitle={totalVendas >= 0 ? 'Lucro com vendas' : 'Perda com vendas'} />
+        <KPICard
+          title="Vendas"
+          value={formatCurrency(totalVendas)}
+          subtitle={`${totalVendas >= 0 ? 'Lucro com vendas' : 'Perda com vendas'} · Média mensal (meses fechados): ${formatCurrency(mediaVendasMensal)}`}
+        />
         <KPICard title="Total Geral" value={formatCurrency(totalGeral)} subtitle={`${filteredRecords.length} lançamentos`} />
         <KPICard title="Média Mensal (Considerando Vendas)" value={formatCurrency(mediaMonsal)} subtitle={`${monthsWithData} mês(es) fechados com dados`} />
       </div>
