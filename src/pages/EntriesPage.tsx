@@ -3,7 +3,7 @@ import { useYear } from '@/contexts/YearContext'
 import { useCategoriesByGroup } from '@/hooks/useCategories'
 import { useEntries, useUpsertEntry, buildEntryMap } from '@/hooks/useEntries'
 import { useInvestmentRecords } from '@/hooks/useInvestment'
-import { formatCurrency, formatPercent } from '@/lib/utils'
+import { formatCurrency, formatPercent, getCurrentYear, getCurrentMonth } from '@/lib/utils'
 import { CATEGORY_GROUP_LABELS, PROVENTO_TYPES } from '@/lib/constants'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { LoadingPage } from '@/components/shared/LoadingSpinner'
@@ -34,6 +34,12 @@ const MESES_COMPLETOS = [
   'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'
 ]
 const MONTHS = [1,2,3,4,5,6,7,8,9,10,11,12]
+
+// Último mês já encerrado do ano: anos passados = 12, ano corrente = mês anterior ao atual
+function lastClosedMonthOf(year: number): number {
+  const currentYear = getCurrentYear()
+  return year < currentYear ? 12 : year === currentYear ? getCurrentMonth() - 1 : 0
+}
 
 // ─── Célula editável inline ───────────────────────────────────────────────────
 // Lógica de cor da célula:
@@ -307,11 +313,11 @@ function EntriesTable({ groups, categories, entryMap, year, type }: {
 }
 
 // ─── Cards de resumo ──────────────────────────────────────────────────────────
-function SummaryCards({ groups, chartGroups, categories, entryMap, type }: {
+function SummaryCards({ groups, chartGroups, categories, entryMap, type, year }: {
   groups: CategoryGroup[]          // grupos usados nos KPI cards (totais gerais)
   chartGroups?: CategoryGroup[]    // grupos usados no gráfico (se diferente dos cards)
   categories: Record<CategoryGroup, Category[]>
-  entryMap: MonthlyEntryMap; type: 'receitas' | 'despesas'
+  entryMap: MonthlyEntryMap; type: 'receitas' | 'despesas'; year: number
 }) {
   // ── KPI cards: soma de todos os grupos da aba ──
   let totalReal = 0, totalOrc = 0
@@ -340,9 +346,12 @@ function SummaryCards({ groups, chartGroups, categories, entryMap, type }: {
     })
   })
 
-  // Média: divide somente pelos meses com algum lançamento
-  const kpiMesesComLancamento = kpiMonthlyReal.filter(v => v !== 0).length
-  const avgReal = kpiMesesComLancamento > 0 ? totalReal / kpiMesesComLancamento : 0
+  // Média: divide somente pelos meses com algum lançamento.
+  // Em Despesas, considera apenas meses já fechados (exclui o mês em andamento).
+  const closedLimit = type === 'despesas' ? lastClosedMonthOf(year) : 12
+  const closedMonthly = kpiMonthlyReal.slice(0, closedLimit)
+  const kpiMesesComLancamento = closedMonthly.filter(v => v !== 0).length
+  const avgReal = kpiMesesComLancamento > 0 ? closedMonthly.reduce((s, v) => s + v, 0) / kpiMesesComLancamento : 0
   const pctOrc = totalOrc > 0 ? (totalReal / totalOrc) * 100 : null
   const saldoOrc = totalOrc - totalReal
   const isPositive = type === 'receitas' ? totalReal >= totalOrc : totalReal <= totalOrc
@@ -378,7 +387,7 @@ function SummaryCards({ groups, chartGroups, categories, entryMap, type }: {
           title={type === 'receitas' ? 'Total Recebido' : 'Total Gasto'}
           value={formatCurrency(totalReal)}
           icon={type === 'receitas' ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
-          subtitle={`Média mensal: ${formatCurrency(avgReal)}`}
+          subtitle={type === 'despesas' ? `Média mensal (meses fechados): ${formatCurrency(avgReal)}` : `Média mensal: ${formatCurrency(avgReal)}`}
           trend={type === 'receitas' ? 'up' : undefined}
         />
         <KPICard
@@ -453,12 +462,15 @@ function AnnualSummary({ categories, entryMap, year }: {
   const pctGasta = totalPassiva !== 0 ? (totalDespesas / totalPassiva) * 100 : 0
   const pctEconomia = totalPassiva !== 0 ? (saldo / totalPassiva) * 100 : 0
 
-  // Médias (só meses com lançamento)
-  const mesesDesp = MONTHS.filter(m =>
-    expenseGroups.some(g => (categories[g] ?? []).some(cat => (entryMap[cat.id]?.[m]?.realizado ?? 0) !== 0))
-  ).length
-  const avgPassiva  = mesesPassiva > 0  ? totalPassiva  / mesesPassiva  : 0
-  const avgDespesas = mesesDesp    > 0  ? totalDespesas / mesesDesp     : 0
+  // Médias (só meses com lançamento). Despesas: apenas meses já fechados do ano.
+  const lastClosed = lastClosedMonthOf(year)
+  const despesaMesesFechados = MONTHS.filter(m => m <= lastClosed)
+    .map(m => expenseGroups.flatMap(g => categories[g] ?? []).reduce((s, cat) => s + (entryMap[cat.id]?.[m]?.realizado ?? 0), 0))
+    .filter(v => v !== 0)
+  const avgPassiva  = mesesPassiva > 0 ? totalPassiva / mesesPassiva : 0
+  const avgDespesas = despesaMesesFechados.length > 0
+    ? despesaMesesFechados.reduce((s, v) => s + v, 0) / despesaMesesFechados.length
+    : 0
 
   // ── Dados mensais para o gráfico ──
   const chartData = MONTHS.map((_, i) => {
@@ -538,7 +550,7 @@ function AnnualSummary({ categories, entryMap, year }: {
           title="Despesas Totais"
           value={formatCurrency(totalDespesas)}
           icon={<DollarSign size={18} />}
-          subtitle={`Média: ${formatCurrency(avgDespesas)}/mês`}
+          subtitle={`Média (meses fechados): ${formatCurrency(avgDespesas)}/mês`}
         />
         <KPICard
           title="Saldo"
@@ -923,12 +935,12 @@ export function EntriesPage() {
         </TabsList>
 
         <TabsContent value="receitas" className="space-y-5">
-          <SummaryCards groups={incomeGroups} chartGroups={['RENDA_PASSIVA']} categories={byGroup} entryMap={entryMap} type="receitas" />
+          <SummaryCards groups={incomeGroups} chartGroups={['RENDA_PASSIVA']} categories={byGroup} entryMap={entryMap} type="receitas" year={year} />
           <EntriesTable groups={incomeGroups} categories={byGroup} entryMap={entryMap} year={year} type="receitas" />
         </TabsContent>
 
         <TabsContent value="despesas" className="space-y-5">
-          <SummaryCards groups={expenseGroups} categories={byGroup} entryMap={entryMap} type="despesas" />
+          <SummaryCards groups={expenseGroups} categories={byGroup} entryMap={entryMap} type="despesas" year={year} />
           <EntriesTable groups={expenseGroups} categories={byGroup} entryMap={entryMap} year={year} type="despesas" />
         </TabsContent>
 
