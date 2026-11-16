@@ -242,6 +242,7 @@ export function DashboardPage() {
             value={formatPercent(pctGasta, 1)}
             icon={<DollarSign size={18} />}
             subtitle={`% de Economia x Renda Passiva: ${formatPercent(economiaRendaPassiva, 1)}`}
+            subtitleClassName="text-sm font-bold text-gray-700"
             valueClassName={pctColor}
           />
         </div>

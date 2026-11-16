@@ -9,9 +9,10 @@ interface KPICardProps {
   trend?: 'up' | 'down' | 'neutral' | 'blue'
   className?: string
   valueClassName?: string
+  subtitleClassName?: string
 }
 
-export function KPICard({ title, value, subtitle, icon, trend, className, valueClassName }: KPICardProps) {
+export function KPICard({ title, value, subtitle, icon, trend, className, valueClassName, subtitleClassName }: KPICardProps) {
   return (
     <div className={cn('bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-3', className)}>
       <div className="flex items-center justify-between">
@@ -37,7 +38,7 @@ export function KPICard({ title, value, subtitle, icon, trend, className, valueC
         )}>
           {value}
         </p>
-        {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
+        {subtitle && <p className={cn('text-xs text-gray-500 mt-1', subtitleClassName)}>{subtitle}</p>}
       </div>
     </div>
   )
