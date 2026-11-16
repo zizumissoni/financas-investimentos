@@ -190,6 +190,11 @@ export function DashboardPage() {
   const coverageRatio = rendaPassivaTotal > 0
     ? (rendaPassivaTotal / (totalDespesas || 1)) * 100 : 0
 
+  // % de economia sobre a renda passiva: (proventos − despesas) / proventos
+  // Ex.: despesas 400 mil, proventos 500 mil → 20%
+  const economiaRendaPassiva = rendaPassivaTotal > 0
+    ? ((rendaPassivaTotal - totalDespesas) / rendaPassivaTotal) * 100 : 0
+
   return (
     <div className="space-y-6">
       {/* Cabeçalho */}
@@ -236,7 +241,7 @@ export function DashboardPage() {
             title="% Gasta"
             value={formatPercent(pctGasta, 1)}
             icon={<DollarSign size={18} />}
-            subtitle={`Cobertura passiva: ${formatPercent(coverageRatio, 1)}`}
+            subtitle={`% de Economia x Renda Passiva: ${formatPercent(economiaRendaPassiva, 1)}`}
             valueClassName={pctColor}
           />
         </div>
