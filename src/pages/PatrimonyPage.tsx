@@ -28,7 +28,7 @@ import type { PatrimonyItem, PatrimonyValue, PatrimonyContribution } from '@/typ
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
-import { Plus, Trash2, Pencil, Wallet, TrendingUp, TrendingDown, Minus, ArrowDownCircle, ArrowUpCircle } from 'lucide-react'
+import { Plus, Trash2, Pencil, Wallet, TrendingUp, TrendingDown, Minus, ArrowDownCircle, ArrowUpCircle, Calculator } from 'lucide-react'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -701,6 +701,9 @@ const GIOVANI_ENTRY_CATEGORIES = new Set([
   'Rendimentos de FIIs',
 ])
 
+// Base de divisão usada na Simulação de IRPF
+const IRPF_BASE = 50000
+
 // Categorias de Receitas que compõem a "Renda Tributável Anual"
 const TAXABLE_ENTRY_CATEGORIES = new Set([
   'JCP', 'Dividendos-Ações BR', 'Exterior-Dividendos', 'ETFs-Renda Fixa',
@@ -793,6 +796,12 @@ export function PatrimonyPage() {
     return entriesSum + investSum
   }, [categories, entries, investments])
 
+  // ── Simulação de IRPF ────────────────────────────────────────────────────────
+  // alíquota (%) = Renda Tributável ÷ R$ 50.000 ; imposto = alíquota × Renda Tributável
+  // Ex.: 173.216,12 ÷ 50.000 = 3,46432% × 173.216,12
+  const irpfPct = rendaTributavelAnual > 0 ? (rendaTributavelAnual / IRPF_BASE) * 100 : 0
+  const simulacaoIrpf = (irpfPct / 100) * Math.max(rendaTributavelAnual, 0)
+
   function openAddItem(owner: Owner) {
     setEditItem(null)
     setForm({ name: '', category: 'Renda Variável', owner })
@@ -879,6 +888,13 @@ export function PatrimonyPage() {
           icon={<TrendingUp size={18} />}
           trend="up"
           subtitle="Receitas (8 categorias) + R.Fixa BR tributável — Giovani"
+        />
+        <KPICard
+          title="Simulação de IRPF"
+          value={formatCurrency(simulacaoIrpf)}
+          icon={<Calculator size={18} />}
+          trend="down"
+          subtitle={`${irpfPct.toLocaleString('pt-BR', { minimumFractionDigits: 5, maximumFractionDigits: 5 })}% (renda ÷ ${formatCurrency(IRPF_BASE)}) × ${formatCurrency(rendaTributavelAnual)}`}
         />
       </div>
 
