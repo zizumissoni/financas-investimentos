@@ -1,33 +1,22 @@
 import { useMemo } from 'react'
 import { useYear } from '@/contexts/YearContext'
-import { useUpcomingBills } from '@/hooks/useDashboard'
 import { useEntries, buildEntryMap } from '@/hooks/useEntries'
 import { useCategoriesByGroup } from '@/hooks/useCategories'
 import { useInvestmentRecords } from '@/hooks/useInvestment'
 import { usePatrimonyValues } from '@/hooks/usePatrimony'
 import { KPICard } from '@/components/shared/KPICard'
 import { LoadingPage } from '@/components/shared/LoadingSpinner'
-import { formatCurrency, formatPercent, formatMonth, derivebillStatus, daysUntilDue } from '@/lib/utils'
+import { formatCurrency, formatPercent, formatMonth } from '@/lib/utils'
 import { PROVENTO_TYPES } from '@/lib/constants'
-import { Badge } from '@/components/ui/badge'
+import { PersonalInflationCard } from '@/components/dashboard/PersonalInflationCard'
 import {
-  TrendingUp, TrendingDown, Minus, DollarSign, PiggyBank,
-  CreditCard, AlertCircle, Wallet, BarChart2, Landmark,
+  TrendingUp, TrendingDown, DollarSign, PiggyBank,
+  CreditCard, Wallet, BarChart2, Landmark,
 } from 'lucide-react'
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
-
-// ─── Bill status badge ────────────────────────────────────────────────────────
-function BillStatusBadge({ dueDate, paidAt }: { dueDate: string; paidAt?: string | null }) {
-  const status = derivebillStatus(dueDate, paidAt)
-  const days = daysUntilDue(dueDate)
-  if (status === 'PAGO')     return <Badge variant="success">Pago</Badge>
-  if (status === 'ATRASADO') return <Badge variant="destructive">Atrasado</Badge>
-  if (days <= 3)             return <Badge variant="warning">Vence em {days}d</Badge>
-  return <Badge variant="secondary">Pendente</Badge>
-}
 
 // ─── Tooltip customizado do gráfico ──────────────────────────────────────────
 function ChartTooltip({ active, payload, label }: any) {
@@ -76,9 +65,6 @@ export function DashboardPage() {
 
   // 3. Patrimônio → patrimony_values
   const { data: patriValues = [], isLoading: loadingPatri } = usePatrimonyValues()
-
-  // 4. Contas a Pagar → próximos vencimentos
-  const { data: upcomingBills = [] } = useUpcomingBills()
 
   const isLoading = loadingEntries || loadingCats || loadingInvest || loadingPatri
 
@@ -277,7 +263,7 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {/* ── Gráfico + Próximos Vencimentos ── */}
+      {/* ── Gráfico + Inflação Pessoal ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Gráfico combinado */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-5">
@@ -341,35 +327,8 @@ export function DashboardPage() {
           )}
         </div>
 
-        {/* Próximos vencimentos */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <AlertCircle size={16} className="text-amber-500" />
-            <h2 className="text-sm font-semibold text-gray-700">Próximos Vencimentos</h2>
-          </div>
-          {upcomingBills.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-32 text-gray-400">
-              <Minus size={20} className="mb-2" />
-              <p className="text-xs">Nenhuma conta nos próximos 7 dias</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {upcomingBills.map((bill) => (
-                <div key={bill.id} className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">{bill.description}</p>
-                    <p className="text-xs text-gray-500">
-                      {new Date(bill.due_date + 'T00:00:00').toLocaleDateString('pt-BR')}
-                      {' · '}
-                      {formatCurrency(bill.amount)}
-                    </p>
-                  </div>
-                  <BillStatusBadge dueDate={bill.due_date} paidAt={bill.paid_at} />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        {/* Inflação Pessoal */}
+        <PersonalInflationCard year={year} />
       </div>
 
       {/* ── Barra de cobertura ── */}
