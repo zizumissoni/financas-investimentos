@@ -55,8 +55,10 @@ export function PersonalInflationCard({ year }: { year: number }) {
       cur = [toIdx(endY, 1), endIdx]
       prev = [toIdx(endY - 1, 1), toIdx(endY - 1, endM)]
     } else if (mode === '12m') {
-      cur = [endIdx - 11, endIdx]
-      prev = [endIdx - 23, endIdx - 12]
+      // Variação em 12 meses: último mês fechado vs. o mesmo mês um ano antes
+      // (ex.: Out/2025 → Out/2026)
+      cur = [endIdx, endIdx]
+      prev = [endIdx - 12, endIdx - 12]
     } else {
       cur = [endIdx, endIdx]
       prev = [endIdx - 1, endIdx - 1]
@@ -133,6 +135,11 @@ export function PersonalInflationCard({ year }: { year: number }) {
             <p className={cn('text-sm font-bold mt-1', up ? 'text-red-600' : 'text-green-600')}>
               {up ? '+' : '−'}{formatCurrency(Math.abs(result.delta))}
             </p>
+            {mode === '12m' && (
+              <p className="text-[11px] font-semibold text-gray-500 mt-1">
+                Variação em 12 meses: {result.prevLabel} → {result.curLabel}
+              </p>
+            )}
             <p className="text-[11px] text-gray-400 mt-1">
               {result.curLabel}: {formatCurrency(result.totalCur)}
             </p>
