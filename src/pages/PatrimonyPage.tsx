@@ -797,9 +797,10 @@ export function PatrimonyPage() {
   }, [categories, entries, investments])
 
   // ── Simulação de IRPF ────────────────────────────────────────────────────────
-  // alíquota (%) = Renda Tributável ÷ R$ 50.000 ; imposto = alíquota × Renda Tributável
-  // Ex.: 173.216,12 ÷ 50.000 = 3,46432% × 173.216,12
-  const irpfPct = rendaTributavelAnual > 0 ? (rendaTributavelAnual / IRPF_BASE) * 100 : 0
+  // alíquota (%) = Renda Tributável ÷ R$ 50.000 (o resultado da divisão já É o percentual);
+  // imposto = alíquota × Renda Tributável
+  // Ex.: 173.216,12 ÷ 50.000 = 3,46432% → 3,46432% × 173.216,12 = R$ 6.000,76
+  const irpfPct = rendaTributavelAnual > 0 ? rendaTributavelAnual / IRPF_BASE : 0
   const simulacaoIrpf = (irpfPct / 100) * Math.max(rendaTributavelAnual, 0)
 
   function openAddItem(owner: Owner) {
